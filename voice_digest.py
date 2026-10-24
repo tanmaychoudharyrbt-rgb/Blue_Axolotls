@@ -5,6 +5,7 @@ from pathlib import Path
 import yaml
 
 from tts import synthesize
+from digest_format import format_text_digest
 
 CONFIG_PATH = Path("config.yaml")
 
@@ -120,7 +121,7 @@ def make_digest(payload, prefs, voices):
     """Returns {"text": ..., "audio_path": ... or None}."""
     lang = prefs["preferred_language"]
     text = build_spoken_text(payload, lang)
-    result = {"text": text, "audio_path": None}
+    result = {"text": format_text_digest(payload, lang), "spoken": text, "audio_path": None}
 
     if prefs["digest_mode"] == "text_only":
         return result
