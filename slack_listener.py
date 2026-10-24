@@ -1,5 +1,8 @@
 
 import os
+import json
+import urllib.request
+
 from dotenv import load_dotenv
 from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
@@ -18,9 +21,7 @@ bot_token = os.getenv("SLACK_BOT_TOKEN")
 app_token = os.getenv("SLACK_APP_TOKEN")
 
 if not bot_token or not app_token:
-    raise ValueError(
-        "Slack tokens missing. Check your .env file."
-    )
+    raise ValueError("Slack tokens missing. Check your .env file.")
 
 # Keep legacy and structured data in the same database file,
 # but in separate tables.
@@ -32,8 +33,8 @@ announcement_repo.delete_expired()
 
 slack_app = App(token=bot_token)
 
+MODEL = "qwen3:4b"
 
-# Categories that trigger notifications.
 NOTIFICATION_STYLES = {
     "🚨 Urgent": {
         "label": "🔴 URGENT",
@@ -54,6 +55,62 @@ NOTIFICATION_STYLES = {
 }
 
 
+def summarize_message(message):
+    """Summarize a Slack message using local Qwen through Ollama."""
+
+    prompt = f"""
+Summarize this college Slack message into its most important information.
+
+Rules:
+- Use 1-2 short sentences.
+- Preserve important facts, dates, times, locations and deadlines.
+- Do not invent information or change the meaning.
+- For exam notices, clearly state the exam and any date or change.
+- For urgent notices, clearly state the issue and required action.
+- Remove greetings, repetition and unnecessary details.
+- Return only the summary.
+
+Message:
+{message}
+"""
+
+    payload = {
+        "model": MODEL,
+        "stream": False,
+        "messages": [
+            {
+                "role": "user",
+                "content": prompt,
+            }
+        ],
+        "options": {
+            "temperature": 0.2,
+        },
+    }
+
+    request = urllib.request.Request(
+        "http://localhost:11434/api/chat",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(request, timeout=60) as response:
+            result = json.loads(response.read().decode("utf-8"))
+
+        summary = result.get("message", {}).get("content", "").strip()
+
+        if summary:
+            return summary
+
+    except Exception as error:
+        print(f"Summarization failed: {error}")
+
+    # Keep notifications working if Ollama is unavailable.
+    return message
+
+
 @slack_app.event("message")
 def handle_message(event, logger):
     # Ignore bot messages, edits, and other message subtypes.
@@ -69,7 +126,7 @@ def handle_message(event, logger):
     slack_ts = event.get("ts", "")
 
     try:
-        # 1. Classify the incoming message using the existing classifier.
+        # 1. Preserve the existing classification workflow.
         category, used_ai = classify_message(message_text)
 
         # 2. Save the legacy message and skip exact duplicates.
@@ -92,8 +149,8 @@ def handle_message(event, logger):
         print("Channel ID:", channel_id)
         print("Message:", message_text)
 
-        # 3. Extract and save structured data independently.
-        # A structured extraction failure must not prevent notifications.
+        # 3. Extract structured data independently.
+        # Extraction failures must not prevent notifications.
         try:
             structured_saved, structured_id, digest = (
                 process_announcement(
@@ -117,31 +174,34 @@ def handle_message(event, logger):
         except Exception:
             logger.exception(
                 "Structured extraction failed; "
-                "legacy Slack message was saved."
+                "legacy message was saved."
             )
 
-        # 4. Preserve the existing notification rules.
+        # 4. Preserve the existing notification category rules.
         style = NOTIFICATION_STYLES.get(category)
 
         if style is None:
             print("No notification needed.")
             return
 
-        # 5. Put the category first in the notification.
+        # 5. Summarize notifications with local Qwen.
+        summary = summarize_message(message_text)
+        print("Summary:", summary)
+
+        # 6. Post the category and summary in the original channel.
         notification_text = (
             f"*{style['label']}*\n"
-            f"{message_text}\n\n"
-            "_Automatically classified by CampusSignal._"
+            f"{summary}\n\n"
+            "_Summarized by CampusSignal._"
         )
 
-        # 6. Send a Slack message with a colored sidebar.
         slack_app.client.chat_postMessage(
             channel=channel_id,
-            text=f"{style['label']} — {message_text}",
+            text=f"{style['label']} — {summary}",
             attachments=[
                 {
                     "color": style["color"],
-                    "fallback": f"{style['label']} — {message_text}",
+                    "fallback": f"{style['label']} — {summary}",
                     "text": notification_text,
                     "mrkdwn_in": ["text"],
                 }
@@ -150,7 +210,7 @@ def handle_message(event, logger):
             unfurl_media=False,
         )
 
-        print(f"{style['label']} notification sent!")
+        print(f"{style['label']} summary posted!")
 
     except Exception:
         logger.exception("Failed to process or notify about message")
