@@ -55,20 +55,40 @@ NOTIFICATION_STYLES = {
 }
 
 
+REASONING_MARKERS = (
+    "the user wants", "the user is asking", "looking at the",
+    "i need to", "i should", "let me", "hmm,", "okay, so",
+    "the rules say", "i'll ", "first, i",
+)
+
+
+def looks_like_reasoning(text):
+    """True if the model leaked its chain-of-thought instead of a summary."""
+    lowered = text.strip().lower()
+    return lowered.startswith(REASONING_MARKERS) or any(
+        marker in lowered[:200] for marker in REASONING_MARKERS[:3]
+    )
+
+
+def fallback_summary(message, limit=140):
+    """Short, safe summary used whenever the AI output can't be trusted."""
+    cleaned = " ".join(message.split())
+    return cleaned if len(cleaned) <= limit else cleaned[:limit].rstrip() + "…"
+
+
 def summarize_message(message):
     """Summarize a Slack message using local Qwen through Ollama."""
 
-    prompt = f"""
-Summarize this college Slack message into its most important information.
+    prompt = f"""Summarize this college Slack message into its most important information.
 
 Rules:
-- Use 1-2 short sentences.
+- Use 1-2 short sentences (under 25 words total).
 - Preserve important facts, dates, times, locations and deadlines.
 - Do not invent information or change the meaning.
 - For exam notices, clearly state the exam and any date or change.
 - For urgent notices, clearly state the issue and required action.
 - Remove greetings, repetition and unnecessary details.
-- Return only the summary.
+- Return ONLY the summary. No explanation, no preamble.
 
 Message:
 {message}
@@ -77,24 +97,14 @@ Message:
     payload = {
         "model": MODEL,
         "stream": False,
-        "messages": [
-            {
-                "role": "user",
-                "content": prompt,
-            }
-        ],
-        "options": {
-            "temperature": 0.2,
-        },
-        # Qwen3 "thinks" by default, which is slow and can exceed the
-        # timeout. Turn it off so the summary comes back quickly.
+        # Qwen3 "thinks" by default; its reasoning must never be posted.
         "think": False,
         "keep_alive": "10m",
         "messages": [{"role": "user", "content": prompt}],
         "options": {
             "temperature": 0.2,
-            "num_predict": 150
-        }
+            "num_predict": 150,
+        },
     }
 
     request = urllib.request.Request(
@@ -108,47 +118,62 @@ Message:
         with urllib.request.urlopen(request, timeout=60) as response:
             result = json.loads(response.read().decode("utf-8"))
 
+        # Cut off mid-generation -> the summary is incomplete, don't post it.
+        if result.get("done_reason") == "length":
+            print("Summary truncated by token limit; using fallback.")
+            return fallback_summary(message)
+
         summary = result.get("message", {}).get("content", "")
 
-        # Remove any leaked reasoning block.
-        summary = re.sub(
-            r"<think>.*?</think>", "", summary, flags=re.DOTALL
-        ).strip()
+        # Remove any leaked reasoning block (closed or unclosed).
+        summary = re.sub(r"<think>.*?</think>", "", summary, flags=re.DOTALL)
+        summary = re.sub(r"<think>.*", "", summary, flags=re.DOTALL).strip()
 
-        if summary:
+        if summary and not looks_like_reasoning(summary):
             return summary
+
+        print("Model returned reasoning instead of a summary; using fallback.")
 
     except Exception as error:
         print(f"Summarization failed, using original text: {error}")
 
-    # Keep notifications working if Ollama is unavailable.
-    return message
+    # Keep notifications working if Ollama is unavailable or misbehaves.
+    return fallback_summary(message)
 
 
-def build_notification(style, summary):
-    """Build the attachment: coloured sidebar, label, then summary."""
+def post_notification(channel_id, style, summary):
+    """Post ONE short notification.
 
-    text = f"*{style['label']}*\n{summary}"
+    `text` is what phone push notifications / lock-screen bubbles show,
+    so it holds only the label + the summary. `blocks` is what the
+    channel displays, so there is no duplicate copy.
+    """
 
-    return {
-        "color": style["color"],
-        "fallback": f"{style['label']} — {summary}",
-        "blocks": [
+    mention = os.getenv("NOTIFY_USER_ID", "").strip()  # e.g. U012ABCDEF
+    prefix = f"<@{mention}> " if mention else ""
+    push_text = f"{prefix}{style['label']} — {summary}"
+
+    slack_app.client.chat_postMessage(
+        channel=channel_id,
+        text=push_text,
+        blocks=[
             {
                 "type": "section",
-                "text": {"type": "mrkdwn", "text": text}
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"{prefix}*{style['label']}*\n{summary}",
+                },
             },
             {
                 "type": "context",
                 "elements": [
-                    {
-                        "type": "mrkdwn",
-                        "text": "_Classified and summarized by CampusSignal_"
-                    }
-                ]
-            }
-        ]
-    }
+                    {"type": "mrkdwn", "text": "_Summarized by CampusSignal_"}
+                ],
+            },
+        ],
+        unfurl_links=False,
+        unfurl_media=False,
+    )
 
 
 @slack_app.event("message")
@@ -187,8 +212,6 @@ def handle_message(event, logger):
             )
             return
 
-        method = "Qwen" if used_ai else "keyword fallback"
-
         print(f"New message classified: {category} ({method})")
         print("Message ID:", message_id)
         print("Channel ID:", channel_id)
@@ -222,44 +245,18 @@ def handle_message(event, logger):
                 "legacy message was saved."
             )
 
-        # 4. Preserve the existing notification category rules.
+        # 4. Only notify for the tracked categories.
         style = NOTIFICATION_STYLES.get(category)
 
         if style is None:
             print("Category is Other: no notification needed.")
             return
 
-        # 5. Put the category first in the notification.
-        notification_text = (
-            f"*{style['label']}*\n"
-            f"{summary}\n\n"
-            "_Summarized by CampusSignal._"
-        )
-
-        slack_app.client.chat_postMessage(
-            channel=channel_id,
-            text=f"{style['label']} — {summary}",
-            attachments=[
-                {
-                    "color": style["color"],
-                    "fallback": f"{style['label']} — {summary}",
-                    "text": notification_text,
-                    "mrkdwn_in": ["text"],
-                }
-            ],
-        # 4. Summarize, then post ONE coloured notification.
+        # 5. Summarize, then post ONE short notification.
         summary = summarize_message(message_text)
         print(f"Summary: {summary}")
 
-        # No top-level `text`: Slack would show it as a second, plain
-        # copy above the coloured card. `fallback` covers push
-        # notifications and clients that can't render attachments.
-        slack_app.client.chat_postMessage(
-            channel=channel_id,
-            attachments=[build_notification(style, summary)],
-            unfurl_links=False,
-            unfurl_media=False,
-        )
+        post_notification(channel_id, style, summary)
 
         print(f"{style['label']} notification posted.")
 
