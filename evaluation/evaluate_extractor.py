@@ -16,10 +16,13 @@ REFERENCE_TIMESTAMP = "2026-10-24T12:00:00"
 def normalize(value):
     """Normalize whitespace and common date-spacing inconsistencies."""
     value = str(value or "").strip().lower()
-    value = re.sub(r"(\d)("
-                   r"january|february|march|april|may|june|july|"
-                   r"august|september|october|november|december"
-                   r")\b", r"\1 \2", value, flags=re.IGNORECASE)
+    value = re.sub(
+        r"(\d)(january|february|march|april|may|june|july|"
+        r"august|september|october|november|december)\b",
+        r"\1 \2",
+        value,
+        flags=re.IGNORECASE,
+    )
     value = re.sub(r"\bat\s*(?=\d)", "at ", value, flags=re.IGNORECASE)
     return " ".join(value.split())
 
@@ -34,6 +37,17 @@ def load_dataset():
     ids = [record["id"] for record in records]
     if len(ids) != len(set(ids)):
         raise ValueError("Duplicate evaluation IDs found.")
+
+    missing = [
+        record["id"]
+        for record in records
+        if "expected_required_action" not in record
+    ]
+    if missing:
+        raise ValueError(
+            "Missing expected_required_action labels for: "
+            + ", ".join(missing)
+        )
 
     return records
 
@@ -62,6 +76,9 @@ def main():
             elapsed = time.perf_counter() - started
             latencies.append(elapsed)
 
+            expected_action = record["expected_required_action"]
+            predicted_action = ranked.required_action
+
             type_ok = (
                 ranked.announcement_type == record["announcement_type"]
             )
@@ -72,18 +89,32 @@ def main():
             urgency_ok = (
                 ranked.urgency_level == record["expected_urgency"]
             )
+            action_ok = (
+                normalize(predicted_action) == normalize(expected_action)
+            )
+
+            expected_has_action = normalize(expected_action) != "not specified"
+            predicted_has_action = normalize(predicted_action) != "not specified"
+
+            missing_action = expected_has_action and not predicted_has_action
+            false_action = not expected_has_action and predicted_has_action
 
             results.append({
                 "id": record["id"],
                 "type_ok": type_ok,
                 "date_ok": date_ok,
                 "urgency_ok": urgency_ok,
+                "action_ok": action_ok,
+                "missing_action": missing_action,
+                "false_action": false_action,
                 "expected_type": record["announcement_type"],
                 "predicted_type": ranked.announcement_type,
                 "expected_date": record["date_or_deadline"],
                 "predicted_date": ranked.date_or_deadline,
                 "expected_urgency": record["expected_urgency"],
                 "predicted_urgency": ranked.urgency_level,
+                "expected_action": expected_action,
+                "predicted_action": predicted_action,
                 "latency": elapsed,
             })
 
@@ -92,6 +123,7 @@ def main():
                 f"type={'PASS' if type_ok else 'FAIL'}, "
                 f"date={'PASS' if date_ok else 'FAIL'}, "
                 f"urgency={'PASS' if urgency_ok else 'FAIL'}, "
+                f"action={'PASS' if action_ok else 'FAIL'}, "
                 f"{elapsed:.2f}s"
             )
 
@@ -117,6 +149,7 @@ def main():
             ("type_ok", "Announcement type"),
             ("date_ok", "Date/detail field"),
             ("urgency_ok", "Urgency"),
+            ("action_ok", "Required action exact match"),
         ):
             correct = sum(item[field] for item in successful)
             print(
@@ -124,12 +157,19 @@ def main():
                 f"({correct / len(successful):.1%})"
             )
 
+        missing_actions = sum(item["missing_action"] for item in successful)
+        false_actions = sum(item["false_action"] for item in successful)
+
+        print("\n=== ACTION ERROR ANALYSIS ===")
+        print(f"Missing required actions: {missing_actions}")
+        print(f"False actions on 'Not specified' records: {false_actions}")
+
         print("\nField mismatches:")
         mismatch_count = 0
 
         for item in successful:
             if not all(item[field] for field in (
-                "type_ok", "date_ok", "urgency_ok"
+                "type_ok", "date_ok", "urgency_ok", "action_ok"
             )):
                 mismatch_count += 1
                 print(
@@ -139,7 +179,9 @@ def main():
                     f"date/detail {item['expected_date']!r} -> "
                     f"{item['predicted_date']!r}; "
                     f"urgency {item['expected_urgency']!r} -> "
-                    f"{item['predicted_urgency']!r}"
+                    f"{item['predicted_urgency']!r}; "
+                    f"action {item['expected_action']!r} -> "
+                    f"{item['predicted_action']!r}"
                 )
 
         if mismatch_count == 0:
@@ -159,9 +201,10 @@ def main():
 
     print(
         "\nCaveat: results reflect this synthetic dataset only. "
-        "Date/detail accuracy uses exact normalized string matching. "
-        "The dataset has no labelled required_action or summary_title, "
-        "so those fields are not scored."
+        "Text fields use exact normalized string matching. "
+        "Action labels are manually assigned evaluation targets; "
+        "review mismatches before changing extraction logic. "
+        "Urgency is ranked after extraction by the deterministic ranker."
     )
 
 

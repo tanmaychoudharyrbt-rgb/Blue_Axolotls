@@ -1,4 +1,3 @@
-
 [
   {
     "id": "U01",
@@ -6,7 +5,8 @@
     "announcement_type": "deadline",
     "date_or_deadline": "24 October 2026 at 6 PM",
     "expected_urgency": "HIGH",
-    "duplicate_group": null
+    "duplicate_group": null,
+    "expected_required_action": "Submit the AI assignment"
   },
   {
     "id": "U02",
@@ -14,7 +14,8 @@
     "announcement_type": "deadline",
     "date_or_deadline": "24 October 2026 at 5 PM",
     "expected_urgency": "HIGH",
-    "duplicate_group": null
+    "duplicate_group": null,
+    "expected_required_action": "Register for the coding contest"
   },
   {
     "id": "U03",
@@ -22,7 +23,8 @@
     "announcement_type": "deadline",
     "date_or_deadline": "24 October 2026 at 7 PM",
     "expected_urgency": "HIGH",
-    "duplicate_group": null
+    "duplicate_group": null,
+    "expected_required_action": "Upload your physics lab record"
   },
   {
     "id": "U04",
@@ -30,7 +32,8 @@
     "announcement_type": "deadline",
     "date_or_deadline": "24 October 2026 at 8 PM",
     "expected_urgency": "HIGH",
-    "duplicate_group": null
+    "duplicate_group": null,
+    "expected_required_action": "Complete the scholarship form"
   },
   {
     "id": "U05",
@@ -38,7 +41,8 @@
     "announcement_type": "deadline",
     "date_or_deadline": "24 October 2026 at 4 PM",
     "expected_urgency": "HIGH",
-    "duplicate_group": null
+    "duplicate_group": null,
+    "expected_required_action": "Pay the examination fee"
   },
   {
     "id": "U06",
@@ -46,7 +50,8 @@
     "announcement_type": "deadline",
     "date_or_deadline": "24 October 2026 at 7 PM",
     "expected_urgency": "HIGH",
-    "duplicate_group": null
+    "duplicate_group": null,
+    "expected_required_action": "Confirm your hackathon team"
   },
   {
     "id": "U07",
@@ -54,7 +59,8 @@
     "announcement_type": "deadline",
     "date_or_deadline": "24 October 2026 at 6 PM",
     "expected_urgency": "HIGH",
-    "duplicate_group": null
+    "duplicate_group": null,
+    "expected_required_action": "Submit the internship preference form"
   },
   {
     "id": "U08",
@@ -62,7 +68,8 @@
     "announcement_type": "deadline",
     "date_or_deadline": "24 October 2026 at 8 PM",
     "expected_urgency": "HIGH",
-    "duplicate_group": null
+    "duplicate_group": null,
+    "expected_required_action": "Complete the programming quiz"
   },
   {
     "id": "U09",
@@ -70,7 +77,8 @@
     "announcement_type": "deadline",
     "date_or_deadline": "24 October 2026 at 5 PM",
     "expected_urgency": "HIGH",
-    "duplicate_group": null
+    "duplicate_group": null,
+    "expected_required_action": "Register for the project review"
   },
   {
     "id": "U10",
@@ -78,7 +86,8 @@
     "announcement_type": "deadline",
     "date_or_deadline": "24 October 2026 at 7 PM",
     "expected_urgency": "HIGH",
-    "duplicate_group": null
+    "duplicate_group": null,
+    "expected_required_action": "Upload your signed undertaking"
   },
   {
     "id": "U11",
@@ -86,7 +95,8 @@
     "announcement_type": "deadline",
     "date_or_deadline": "24 October 2026 at 6 PM",
     "expected_urgency": "HIGH",
-    "duplicate_group": null
+    "duplicate_group": null,
+    "expected_required_action": "Apply for the student ambassador role"
   },
   {
     "id": "U12",
@@ -94,7 +104,8 @@
     "announcement_type": "deadline",
     "date_or_deadline": "24 October 2026 at 8 PM",
     "expected_urgency": "HIGH",
-    "duplicate_group": null
+    "duplicate_group": null,
+    "expected_required_action": "Send your presentation slides"
   },
   {
     "id": "S01",
@@ -102,7 +113,8 @@
     "announcement_type": "schedule_change",
     "date_or_deadline": "Tuesday at 11 AM",
     "expected_urgency": "LOW",
-    "duplicate_group": null
+    "duplicate_group": null,
+    "expected_required_action": "Not specified"
   },
   {
     "id": "S02",
@@ -110,7 +122,8 @@
     "announcement_type": "schedule_change",
     "date_or_deadline": "4 PM",
     "expected_urgency": "LOW",
-    "duplicate_group": null
+    "duplicate_group": null,
+    "expected_required_action": "Not specified"
   },
   {
     "id": "S03",
@@ -118,7 +131,8 @@
     "announcement_type": "schedule_change",
     "date_or_deadline": "Saturday",
     "expected_urgency": "LOW",
-    "duplicate_group": null
+    "duplicate_group": null,
+    "expected_required_action": "Not specified"
   },
   {
     "id": "S04",
@@ -126,7 +140,8 @@
     "announcement_type": "schedule_change",
     "date_or_deadline": "27 October",
     "expected_urgency": "LOW",
-    "duplicate_group": null
+    "duplicate_group": null,
+    "expected_required_action": "Not specified"
   },
   {
     "id": "S05",
@@ -134,7 +149,8 @@
     "announcement_type": "schedule_change",
     "date_or_deadline": "Room 204",
     "expected_urgency": "LOW",
-    "duplicate_group": null
+    "duplicate_group": null,
+    "expected_required_action": "Not specified"
   },
   {
     "id": "S06",
@@ -142,7 +158,8 @@
     "announcement_type": "schedule_change",
     "date_or_deadline": "3 PM",
     "expected_urgency": "LOW",
-    "duplicate_group": null
+    "duplicate_group": null,
+    "expected_required_action": "Not specified"
   },
   {
     "id": "S07",
@@ -150,7 +167,8 @@
     "announcement_type": "schedule_change",
     "date_or_deadline": "next Wednesday",
     "expected_urgency": "LOW",
-    "duplicate_group": null
+    "duplicate_group": null,
+    "expected_required_action": "Not specified"
   },
   {
     "id": "S08",
@@ -158,7 +176,8 @@
     "announcement_type": "schedule_change",
     "date_or_deadline": "Room 15",
     "expected_urgency": "LOW",
-    "duplicate_group": null
+    "duplicate_group": null,
+    "expected_required_action": "Not specified"
   },
   {
     "id": "D01",
@@ -166,7 +185,8 @@
     "announcement_type": "general_update",
     "date_or_deadline": "Not specified",
     "expected_urgency": "LOW",
-    "duplicate_group": "LIBRARY_HOURS"
+    "duplicate_group": "LIBRARY_HOURS",
+    "expected_required_action": "Not specified"
   },
   {
     "id": "D02",
@@ -174,7 +194,8 @@
     "announcement_type": "general_update",
     "date_or_deadline": "Not specified",
     "expected_urgency": "LOW",
-    "duplicate_group": "LIBRARY_HOURS"
+    "duplicate_group": "LIBRARY_HOURS",
+    "expected_required_action": "Not specified"
   },
   {
     "id": "D03",
@@ -182,7 +203,8 @@
     "announcement_type": "general_update",
     "date_or_deadline": "Not specified",
     "expected_urgency": "LOW",
-    "duplicate_group": "CAFETERIA_HOURS"
+    "duplicate_group": "CAFETERIA_HOURS",
+    "expected_required_action": "Not specified"
   },
   {
     "id": "D04",
@@ -190,7 +212,8 @@
     "announcement_type": "general_update",
     "date_or_deadline": "Not specified",
     "expected_urgency": "LOW",
-    "duplicate_group": "CAFETERIA_HOURS"
+    "duplicate_group": "CAFETERIA_HOURS",
+    "expected_required_action": "Not specified"
   },
   {
     "id": "D05",
@@ -198,7 +221,8 @@
     "announcement_type": "general_update",
     "date_or_deadline": "Not specified",
     "expected_urgency": "LOW",
-    "duplicate_group": "CODING_ORIENTATION"
+    "duplicate_group": "CODING_ORIENTATION",
+    "expected_required_action": "Not specified"
   },
   {
     "id": "D06",
@@ -206,7 +230,8 @@
     "announcement_type": "general_update",
     "date_or_deadline": "Not specified",
     "expected_urgency": "LOW",
-    "duplicate_group": "CODING_ORIENTATION"
+    "duplicate_group": "CODING_ORIENTATION",
+    "expected_required_action": "Not specified"
   },
   {
     "id": "D07",
@@ -214,7 +239,8 @@
     "announcement_type": "general_update",
     "date_or_deadline": "Not specified",
     "expected_urgency": "LOW",
-    "duplicate_group": "CAMPUS_SHUTTLE"
+    "duplicate_group": "CAMPUS_SHUTTLE",
+    "expected_required_action": "Not specified"
   },
   {
     "id": "D08",
@@ -222,7 +248,8 @@
     "announcement_type": "general_update",
     "date_or_deadline": "Not specified",
     "expected_urgency": "LOW",
-    "duplicate_group": "CAMPUS_SHUTTLE"
+    "duplicate_group": "CAMPUS_SHUTTLE",
+    "expected_required_action": "Not specified"
   },
   {
     "id": "D09",
@@ -230,7 +257,8 @@
     "announcement_type": "general_update",
     "date_or_deadline": "Not specified",
     "expected_urgency": "LOW",
-    "duplicate_group": "HELP_DESK_LOCATION"
+    "duplicate_group": "HELP_DESK_LOCATION",
+    "expected_required_action": "Not specified"
   },
   {
     "id": "D10",
@@ -238,7 +266,8 @@
     "announcement_type": "general_update",
     "date_or_deadline": "Not specified",
     "expected_urgency": "LOW",
-    "duplicate_group": "HELP_DESK_LOCATION"
+    "duplicate_group": "HELP_DESK_LOCATION",
+    "expected_required_action": "Not specified"
   },
   {
     "id": "G01",
@@ -246,7 +275,8 @@
     "announcement_type": "general_update",
     "date_or_deadline": "Not specified",
     "expected_urgency": "LOW",
-    "duplicate_group": null
+    "duplicate_group": null,
+    "expected_required_action": "Not specified"
   },
   {
     "id": "G02",
@@ -254,7 +284,8 @@
     "announcement_type": "general_update",
     "date_or_deadline": "Not specified",
     "expected_urgency": "LOW",
-    "duplicate_group": null
+    "duplicate_group": null,
+    "expected_required_action": "Not specified"
   },
   {
     "id": "G03",
@@ -262,7 +293,8 @@
     "announcement_type": "general_update",
     "date_or_deadline": "Not specified",
     "expected_urgency": "LOW",
-    "duplicate_group": null
+    "duplicate_group": null,
+    "expected_required_action": "Not specified"
   },
   {
     "id": "G04",
@@ -270,7 +302,8 @@
     "announcement_type": "general_update",
     "date_or_deadline": "Not specified",
     "expected_urgency": "LOW",
-    "duplicate_group": null
+    "duplicate_group": null,
+    "expected_required_action": "Not specified"
   },
   {
     "id": "G05",
@@ -278,7 +311,8 @@
     "announcement_type": "general_update",
     "date_or_deadline": "Not specified",
     "expected_urgency": "LOW",
-    "duplicate_group": null
+    "duplicate_group": null,
+    "expected_required_action": "Not specified"
   },
   {
     "id": "G06",
@@ -286,7 +320,8 @@
     "announcement_type": "general_update",
     "date_or_deadline": "Not specified",
     "expected_urgency": "LOW",
-    "duplicate_group": null
+    "duplicate_group": null,
+    "expected_required_action": "Not specified"
   },
   {
     "id": "G07",
@@ -294,7 +329,8 @@
     "announcement_type": "general_update",
     "date_or_deadline": "Not specified",
     "expected_urgency": "LOW",
-    "duplicate_group": null
+    "duplicate_group": null,
+    "expected_required_action": "Not specified"
   },
   {
     "id": "G08",
@@ -302,7 +338,8 @@
     "announcement_type": "general_update",
     "date_or_deadline": "Not specified",
     "expected_urgency": "LOW",
-    "duplicate_group": null
+    "duplicate_group": null,
+    "expected_required_action": "Not specified"
   },
   {
     "id": "G09",
@@ -310,7 +347,8 @@
     "announcement_type": "general_update",
     "date_or_deadline": "Not specified",
     "expected_urgency": "LOW",
-    "duplicate_group": null
+    "duplicate_group": null,
+    "expected_required_action": "Not specified"
   },
   {
     "id": "G10",
@@ -318,6 +356,7 @@
     "announcement_type": "general_update",
     "date_or_deadline": "Not specified",
     "expected_urgency": "LOW",
-    "duplicate_group": null
+    "duplicate_group": null,
+    "expected_required_action": "Not specified"
   }
 ]

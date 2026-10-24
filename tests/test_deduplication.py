@@ -101,3 +101,57 @@ def test_invalid_threshold_is_rejected():
         pass
     else:
         raise AssertionError("An invalid threshold should be rejected.")
+
+
+def test_missing_timestamp_retains_first_record():
+    records = [
+        AnnouncementRecord(
+            text="Library closes at nine tonight",
+            source_url="https://example.com/first",
+        ),
+        AnnouncementRecord(
+            text="Library closes at nine tonight",
+            source_url="https://example.com/second",
+            timestamp="2026-10-24T18:00:00",
+        ),
+    ]
+
+    groups = deduplicate_announcements(records)
+
+    assert len(groups) == 1
+    assert groups[0].representative.source_url == (
+        "https://example.com/first"
+    )
+    assert groups[0].representative.timestamp == ""
+    assert [record.source_url for record in groups[0].duplicates] == [
+        "https://example.com/second"
+    ]
+
+
+def test_timezone_aware_timestamps_select_earliest_instant():
+    records = [
+        AnnouncementRecord(
+            text="Library closes at nine tonight",
+            source_url="https://example.com/later",
+            timestamp="2026-10-24T20:00:00+05:30",
+        ),
+        AnnouncementRecord(
+            text="Library closes at nine tonight",
+            source_url="https://example.com/earlier",
+            timestamp="2026-10-24T11:00:00+00:00",
+        ),
+    ]
+
+    groups = deduplicate_announcements(records)
+
+    assert len(groups) == 1
+    assert groups[0].representative.source_url == (
+        "https://example.com/earlier"
+    )
+    assert [record.source_url for record in groups[0].duplicates] == [
+        "https://example.com/later"
+    ]
+
+
+def test_empty_announcement_list_returns_no_groups():
+    assert deduplicate_announcements([]) == []
