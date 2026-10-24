@@ -1,0 +1,23 @@
+user_preferences:
+  delivery_channel: "slack"       # slack, stdout
+  digest_mode: "hybrid"           # text_only, voice_only, hybrid
+  preferred_language: "en"        # en, hi, mr
+  tts_engine: "kokoro"            # changed from piper → kokoro
+  voice_speed: 1.0                # speed multiplier: 0.25 to 3.0
+  max_duration_sec: 30            # hard length cap
+  audio_format: "mp3"             # mp3, wav, ogg  (Kokoro supports all)
+
+# Kokoro voice IDs per language
+# Available voices: af_heart, af_bella, af_nicole, af_sarah, af_sky
+#                   am_adam, am_michael, bf_emma, bf_isabella, bm_george, bm_lewis
+kokoro_voices:
+  en: "af_heart"
+  hi: "af_heart"    # Kokoro doesn't have native Hindi yet; English voice used
+  mr: "af_heart"    # same fallback
+
+# Kokoro FastAPI server config
+kokoro:
+  base_url: "http://localhost:8880/v1"   # Local Docker default
+  api_key:  "not-needed"                 # Placeholder for local; use real key for cloud
+
+# NOTE: Calendar config lives in the `calendar` branch (config.yaml there has calendar section)

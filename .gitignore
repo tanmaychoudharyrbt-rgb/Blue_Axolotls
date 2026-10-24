@@ -4,3 +4,9 @@ __pycache__/
 *.db
 .env
 .DS_Store
+*.wav
+*.aiff
+*.mp3
+token_google.json
+token_outlook.json
+credentials_google.json
