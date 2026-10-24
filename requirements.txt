@@ -35,3 +35,6 @@ uvicorn==0.54.0
 websockets==17.3
 
 pydantic==2.14.1
+
+# Testing
+pytest==9.1.1
