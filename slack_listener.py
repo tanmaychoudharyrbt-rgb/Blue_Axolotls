@@ -11,8 +11,10 @@ from campussignal_core import (
     MODEL,
     init_db,
     classify_message,
-    save_message
+    save_message,
 )
+from ai_pipeline.repository import AnnouncementRepository
+from ai_pipeline.service import process_announcement
 
 load_dotenv()
 
@@ -22,32 +24,39 @@ app_token = os.getenv("SLACK_APP_TOKEN")
 if not bot_token or not app_token:
     raise ValueError("Slack tokens missing. Check your .env file.")
 
+# Keep legacy and structured data in the same database file,
+# but in separate tables.
 init_db()
+
+announcement_repo = AnnouncementRepository()
+announcement_repo.initialize()
+announcement_repo.delete_expired()
+
 slack_app = App(token=bot_token)
 
 # Only these categories trigger a notification ("Other" is ignored).
 NOTIFICATION_STYLES = {
     "🚨 Urgent": {
         "label": "🔴 URGENT",
-        "color": "#E01E5A"
+        "color": "#E01E5A",
     },
     "📝 Exam Alert": {
         "label": "🟠 EXAM ALERT",
-        "color": "#F28C28"
+        "color": "#F28C28",
     },
     "📚 Academic": {
         "label": "🔵 ACADEMIC",
-        "color": "#1264A3"
+        "color": "#1264A3",
     },
     "🎉 Event": {
         "label": "🟢 EVENT",
-        "color": "#2BAC76"
-    }
+        "color": "#2BAC76",
+    },
 }
 
 
 def summarize_message(message):
-    """Summarize with local Qwen. Falls back to the original message."""
+    """Summarize a Slack message using local Qwen through Ollama."""
 
     prompt = f"""
 Summarize this college Slack message into its most important information.
@@ -68,6 +77,15 @@ Message:
     payload = {
         "model": MODEL,
         "stream": False,
+        "messages": [
+            {
+                "role": "user",
+                "content": prompt,
+            }
+        ],
+        "options": {
+            "temperature": 0.2,
+        },
         # Qwen3 "thinks" by default, which is slow and can exceed the
         # timeout. Turn it off so the summary comes back quickly.
         "think": False,
@@ -83,7 +101,7 @@ Message:
         "http://localhost:11434/api/chat",
         data=json.dumps(payload).encode("utf-8"),
         headers={"Content-Type": "application/json"},
-        method="POST"
+        method="POST",
     )
 
     try:
@@ -103,6 +121,7 @@ Message:
     except Exception as error:
         print(f"Summarization failed, using original text: {error}")
 
+    # Keep notifications working if Ollama is unavailable.
     return message
 
 
@@ -158,7 +177,7 @@ def handle_message(event, logger):
             category=category,
             source="slack",
             channel_id=channel_id,
-            slack_ts=slack_ts
+            slack_ts=slack_ts,
         )
 
         if not saved:
@@ -168,13 +187,66 @@ def handle_message(event, logger):
             )
             return
 
-        # 3. "Other" messages get no notification.
+        method = "Qwen" if used_ai else "keyword fallback"
+
+        print(f"New message classified: {category} ({method})")
+        print("Message ID:", message_id)
+        print("Channel ID:", channel_id)
+        print("Message:", message_text)
+
+        # 3. Extract structured data independently.
+        # Extraction failures must not prevent notifications.
+        try:
+            structured_saved, structured_id, digest = (
+                process_announcement(
+                    message_text,
+                    source="slack",
+                    channel_id=channel_id,
+                    slack_ts=slack_ts,
+                    repository=announcement_repo,
+                )
+            )
+
+            if structured_saved:
+                print(
+                    "Structured announcement saved:",
+                    structured_id,
+                    digest.announcement_type,
+                )
+            else:
+                print("Duplicate structured announcement skipped.")
+
+        except Exception:
+            logger.exception(
+                "Structured extraction failed; "
+                "legacy message was saved."
+            )
+
+        # 4. Preserve the existing notification category rules.
         style = NOTIFICATION_STYLES.get(category)
 
         if style is None:
             print("Category is Other: no notification needed.")
             return
 
+        # 5. Put the category first in the notification.
+        notification_text = (
+            f"*{style['label']}*\n"
+            f"{summary}\n\n"
+            "_Summarized by CampusSignal._"
+        )
+
+        slack_app.client.chat_postMessage(
+            channel=channel_id,
+            text=f"{style['label']} — {summary}",
+            attachments=[
+                {
+                    "color": style["color"],
+                    "fallback": f"{style['label']} — {summary}",
+                    "text": notification_text,
+                    "mrkdwn_in": ["text"],
+                }
+            ],
         # 4. Summarize, then post ONE coloured notification.
         summary = summarize_message(message_text)
         print(f"Summary: {summary}")
@@ -186,7 +258,7 @@ def handle_message(event, logger):
             channel=channel_id,
             attachments=[build_notification(style, summary)],
             unfurl_links=False,
-            unfurl_media=False
+            unfurl_media=False,
         )
 
         print(f"{style['label']} notification posted.")

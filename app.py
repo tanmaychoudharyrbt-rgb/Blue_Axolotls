@@ -21,6 +21,8 @@ from campussignal_core import (
     message_exists,
     save_message,
 )
+from ai_pipeline.repository import AnnouncementRepository
+from ai_pipeline.service import process_announcement
 from ai_pipeline.extractor import extract_announcement
 from ai_pipeline.schema import AnnouncementDigest
 from tts_kokoro import synthesize_bytes, check_kokoro_health
@@ -44,250 +46,10 @@ if "extracted_digests" not in st.session_state:
 
 init_db()
 
+announcement_repo = AnnouncementRepository()
+announcement_repo.initialize()
+announcement_repo.delete_expired()
 
-def get_summary_text_for_speech(digest: AnnouncementDigest, raw_message: str) -> str:
-    """Creates a natural, high-signal spoken summary from the extracted digest."""
-    parts = []
-    
-    # Priority announcement intro
-    if digest.urgency_level == "HIGH":
-        parts.append("Urgent announcement:")
-    else:
-        parts.append("Campus notice:")
-
-    # Core action and title
-    title = digest.summary_title.strip().rstrip(".")
-    parts.append(f"{title}.")
-
-    if digest.required_action != "Not specified":
-        parts.append(f"Action required: {digest.required_action}.")
-
-    if digest.date_or_deadline != "Not specified":
-        parts.append(f"Deadline: {digest.date_or_deadline}.")
-
-    # Ranking reason if urgent
-    if digest.urgency_level in ("HIGH", "MEDIUM") and digest.ranking_reason:
-        reason = digest.ranking_reason.strip().rstrip(".")
-        parts.append(f"Why it matters: {reason}.")
-
-    return " ".join(parts)
-
-
-def render_ovular_audio_player(audio_b64: str, player_key: str, initial_speed: float = 1.25):
-    """
-    Renders an expandable ovular capsule player with:
-      • ▶️ / ⏸️ Play/Pause toggle
-      • ⏹️ Stop
-      • Time elapsed / Total duration
-      • Scrub completion bar
-      • Speed selector (0.75x to 3.0x)
-    """
-    html_code = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="utf-8">
-      <style>
-        body {{
-          margin: 0;
-          padding: 4px 0;
-          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-          background: transparent;
-        }}
-        .ovular-pill {{
-          display: inline-flex;
-          align-items: center;
-          background: linear-gradient(135deg, #0f172a, #1e293b);
-          border: 1px solid #334155;
-          border-radius: 9999px;
-          padding: 6px 16px;
-          box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
-          color: #f8fafc;
-          gap: 12px;
-          max-width: 100%;
-          box-sizing: border-box;
-          animation: expandPill 0.25s ease-out;
-        }}
-        @keyframes expandPill {{
-          from {{ opacity: 0; transform: scale(0.95); }}
-          to {{ opacity: 1; transform: scale(1); }}
-        }}
-        .btn-ctrl {{
-          background: #3b82f6;
-          border: none;
-          color: white;
-          width: 32px;
-          height: 32px;
-          border-radius: 50%;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 13px;
-          transition: transform 0.1s, background 0.2s;
-        }}
-        .btn-ctrl:hover {{
-          background: #2563eb;
-          transform: scale(1.06);
-        }}
-        .btn-stop {{
-          background: #ef4444;
-          border: none;
-          color: white;
-          width: 28px;
-          height: 28px;
-          border-radius: 50%;
-          cursor: pointer;
-          font-size: 11px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          transition: background 0.2s;
-        }}
-        .btn-stop:hover {{
-          background: #dc2626;
-        }}
-        .time-box {{
-          font-size: 12px;
-          font-variant-numeric: tabular-nums;
-          color: #94a3b8;
-          white-space: nowrap;
-          min-width: 78px;
-        }}
-        .progress-bar-container {{
-          flex-grow: 1;
-          display: flex;
-          align-items: center;
-          min-width: 120px;
-          max-width: 220px;
-        }}
-        .progress-bar {{
-          width: 100%;
-          -webkit-appearance: none;
-          height: 5px;
-          border-radius: 3px;
-          background: #475569;
-          outline: none;
-          cursor: pointer;
-        }}
-        .progress-bar::-webkit-slider-thumb {{
-          -webkit-appearance: none;
-          width: 13px;
-          height: 13px;
-          border-radius: 50%;
-          background: #38bdf8;
-          cursor: pointer;
-          box-shadow: 0 0 6px rgba(56, 189, 248, 0.6);
-        }}
-        .speed-pill-select {{
-          background: #334155;
-          color: #38bdf8;
-          font-size: 12px;
-          font-weight: bold;
-          border: 1px solid #475569;
-          border-radius: 12px;
-          padding: 3px 8px;
-          cursor: pointer;
-          outline: none;
-        }}
-      </style>
-    </head>
-    <body>
-      <div class="ovular-pill" id="pill_{player_key}">
-        <button class="btn-ctrl" id="playBtn" onclick="togglePlay()">▶</button>
-        <button class="btn-stop" id="stopBtn" onclick="stopAudio()" title="Stop">⏹</button>
-        
-        <div class="time-box" id="timeBox">0:00 / 0:00</div>
-        
-        <div class="progress-bar-container">
-          <input type="range" class="progress-bar" id="seekBar" min="0" max="100" value="0" oninput="seekAudio(this.value)">
-        </div>
-
-        <select class="speed-pill-select" id="speedSelect" onchange="changeSpeed(this.value)" title="Change Voice Speed">
-          <option value="0.75" {"selected" if initial_speed==0.75 else ""}>0.75x</option>
-          <option value="1.0"  {"selected" if initial_speed==1.0 else ""}>1.0x</option>
-          <option value="1.25" {"selected" if initial_speed==1.25 else ""}>1.25x</option>
-          <option value="1.5"  {"selected" if initial_speed==1.5 else ""}>1.5x</option>
-          <option value="2.0"  {"selected" if initial_speed==2.0 else ""}>2.0x</option>
-          <option value="3.0"  {"selected" if initial_speed==3.0 else ""}>3.0x</option>
-        </select>
-      </div>
-
-      <audio id="audioElement" src="data:audio/mp3;base64,{audio_b64}"></audio>
-
-      <script>
-        const audio = document.getElementById("audioElement");
-        const playBtn = document.getElementById("playBtn");
-        const timeBox = document.getElementById("timeBox");
-        const seekBar = document.getElementById("seekBar");
-        const speedSelect = document.getElementById("speedSelect");
-
-        audio.playbackRate = parseFloat(speedSelect.value);
-
-        function formatTime(secs) {{
-          if (isNaN(secs)) return "0:00";
-          const m = Math.floor(secs / 60);
-          const s = Math.floor(secs % 60);
-          return m + ":" + (s < 10 ? "0" : "") + s;
-        }}
-
-        function togglePlay() {{
-          if (audio.paused) {{
-            audio.play();
-            playBtn.innerText = "⏸";
-          }} else {{
-            audio.pause();
-            playBtn.innerText = "▶";
-          }}
-        }}
-
-        function stopAudio() {{
-          audio.pause();
-          audio.currentTime = 0;
-          playBtn.innerText = "▶";
-          seekBar.value = 0;
-          updateTime();
-        }}
-
-        function seekAudio(percent) {{
-          if (audio.duration) {{
-            audio.currentTime = (percent / 100) * audio.duration;
-          }}
-        }}
-
-        function changeSpeed(val) {{
-          audio.playbackRate = parseFloat(val);
-        }}
-
-        function updateTime() {{
-          const cur = audio.currentTime;
-          const dur = audio.duration || 0;
-          timeBox.innerText = formatTime(cur) + " / " + formatTime(dur);
-          if (dur > 0) {{
-            seekBar.value = (cur / dur) * 100;
-          }}
-        }}
-
-        audio.addEventListener("timeupdate", updateTime);
-        audio.addEventListener("loadedmetadata", updateTime);
-        audio.addEventListener("ended", () => {{
-          playBtn.innerText = "▶";
-          seekBar.value = 0;
-        }});
-
-        window.addEventListener("DOMContentLoaded", () => {{
-          audio.play().then(() => {{
-            playBtn.innerText = "⏸";
-          }}).catch(() => {{}});
-        }});
-      </script>
-    </body>
-    </html>
-    """
-    components.html(html_code, height=52)
-
-
-# ── Title & Preferences ─────────────────────────────────────────────
 st.title("📚 CampusSignal")
 st.write("Your college Slack communication, organized, summarized with local AI, spoken aloud, and synced to calendar.")
 
@@ -465,22 +227,34 @@ with col_side:
                         st.session_state.active_player_id = None
                         st.rerun()
 
-            with footer_col2:
-                # Add to Calendar using Person B's extracted facts
-                if st.button("📅 Add to Cal", key=f"cal_{message_id}", help="Add this deadline to Google & Outlook"):
-                    deadline_val = digest.date_or_deadline if digest.date_or_deadline != "Not specified" else "Today"
-                    res = sync_digest_to_calendars({
-                        "ranked_summary": [{
-                            "title": digest.summary_title,
-                            "summary": f"Action required: {digest.required_action}\nAnnouncement: {saved_message}",
-                            "deadline": deadline_val,
-                            "urgency": digest.urgency_level.lower(),
-                        }]
-                    })
-                    if res:
-                        gcal_link = res[0].get("google", {}).get("htmlLink")
-                        ocal_link = res[0].get("outlook", {}).get("webLink")
-                        if gcal_link:
-                            st.markdown(f"[📅 Google]({gcal_link})")
-                        if ocal_link:
-                            st.markdown(f"[📧 Outlook]({ocal_link})")
+        st.write(saved_message)
+
+st.divider()
+st.subheader("🧠 Structured announcements")
+
+active_announcements = announcement_repo.list_active()
+st.write(f"Active structured announcements: {len(active_announcements)}")
+
+if not active_announcements:
+    st.info("No structured announcements are available yet.")
+
+for row in active_announcements:
+    (
+        announcement_id, structured_message, announcement_type,
+        summary_title, required_action, date_or_deadline,
+        urgency_level, ranking_reason, confidence_score, source_url,
+        structured_source, structured_channel, received_at,
+        deadline_at, expires_at,
+    ) = row
+
+    with st.container(border=True):
+        st.caption(
+            f"{announcement_type.replace('_', ' ').title()} · "
+            f"{urgency_level} · {structured_source}"
+        )
+        st.write(f"**{summary_title}**")
+        st.write(structured_message)
+        st.write(f"**Required action:** {required_action}")
+        st.write(f"**Date/deadline:** {date_or_deadline}")
+        if expires_at:
+            st.caption(f"Automatic expiry: {expires_at} (UTC)")
