@@ -5,6 +5,8 @@ import re
 import requests
 
 from ai_pipeline.schema import AnnouncementDigest
+from ai_pipeline.deadline_resolver import resolve_deadline
+from ai_pipeline.urgency import rank_urgency
 
 
 OLLAMA_URL = "http://127.0.0.1:11434/api/chat"
@@ -235,6 +237,42 @@ Announcement text:
         else:
             data["announcement_type"] = "general_update"
             data["required_action"] = "Not specified"
+
+    # Resolve and rank actual deadlines only after classification.
+    # Schedule-change dates describe the new schedule, not necessarily
+    # a deadline, so they must not be treated as expiring tasks.
+    if data["announcement_type"] == "deadline":
+        resolved_deadline = None
+
+        if reference_timestamp:
+            resolved_deadline = resolve_deadline(
+                data.get("date_or_deadline", ""),
+                reference_timestamp,
+            )
+
+        if resolved_deadline is not None:
+            data["date_or_deadline"] = resolved_deadline.isoformat()
+
+            # Rank urgency using the resolved absolute deadline.
+            validated_digest = AnnouncementDigest.model_validate(data)
+            ranked_digest = rank_urgency(
+                validated_digest,
+                reference_timestamp,
+            )
+            data["urgency_level"] = ranked_digest.urgency_level
+            data["ranking_reason"] = (
+                "Deadline resolved to "
+                f"{resolved_deadline.isoformat()} in Asia/Kolkata. "
+                f"{ranked_digest.ranking_reason}"
+            )
+        else:
+            # Never infer urgency from an unresolved deadline.
+            data["urgency_level"] = "LOW"
+            data["ranking_reason"] = (
+                "A deadline is mentioned, but its date and time could "
+                "not be safely resolved from the available information. "
+                "Urgency remains LOW until the deadline is confirmed."
+            )
 
     # Correct common spacing errors in model-generated explanations.
     data["ranking_reason"] = normalize_month_spacing(

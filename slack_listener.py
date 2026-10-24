@@ -9,6 +9,8 @@ from campussignal_core import (
     classify_message,
     save_message
 )
+from ai_pipeline.repository import AnnouncementRepository
+from ai_pipeline.service import process_announcement
 
 load_dotenv()
 
@@ -20,8 +22,12 @@ if not bot_token or not app_token:
         "Slack tokens missing. Check your .env file."
     )
 
-# Make sure the shared database exists.
+# Keep legacy and structured data in the same database file,
+# but in separate tables.
 init_db()
+announcement_repo = AnnouncementRepository()
+announcement_repo.initialize()
+announcement_repo.delete_expired()
 
 slack_app = App(token=bot_token)
 
@@ -62,6 +68,32 @@ def handle_message(event, logger):
             print("Category:", category)
             print("Classifier:", method)
             print("Message:", message_text)
+
+            # Do not let structured extraction failures undo or obscure
+            # the legacy message that has already been saved.
+            try:
+                structured_saved, structured_id, digest = (
+                    process_announcement(
+                        message_text,
+                        source="slack",
+                        channel_id=channel_id,
+                        slack_ts=slack_ts,
+                        repository=announcement_repo,
+                    )
+                )
+                if structured_saved:
+                    print(
+                        "Structured announcement saved:",
+                        structured_id,
+                        digest.announcement_type,
+                    )
+                else:
+                    print("Duplicate structured announcement skipped.")
+            except Exception:
+                logger.exception(
+                    "Structured extraction failed; "
+                    "legacy Slack message was saved."
+                )
         else:
             print("\nDuplicate message skipped.")
             print("Existing message ID:", message_id)

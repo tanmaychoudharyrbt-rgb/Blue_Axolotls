@@ -9,6 +9,8 @@ from campussignal_core import (
     message_exists,
     save_message
 )
+from ai_pipeline.repository import AnnouncementRepository
+from ai_pipeline.service import process_announcement
 
 st.set_page_config(
     page_title="CampusSignal",
@@ -16,6 +18,10 @@ st.set_page_config(
 )
 
 init_db()
+
+announcement_repo = AnnouncementRepository()
+announcement_repo.initialize()
+announcement_repo.delete_expired()
 
 st.title("📚 CampusSignal")
 st.write("Your college communication, organized.")
@@ -49,6 +55,35 @@ if st.button("Analyze message"):
             if saved:
                 st.success("Message saved!")
                 st.write("**Category:**", category)
+
+                # Structured extraction is independent of legacy saving.
+                try:
+                    structured_saved, structured_id, digest = (
+                        process_announcement(
+                            clean_message,
+                            source="dashboard",
+                            repository=announcement_repo,
+                        )
+                    )
+                    if structured_saved:
+                        st.caption(
+                            "Structured announcement saved: "
+                            f"{digest.announcement_type}"
+                        )
+                    else:
+                        st.caption(
+                            "This structured announcement already exists."
+                        )
+                except Exception:
+                    st.warning(
+                        "The message was saved, but structured "
+                        "extraction was unavailable. You can still "
+                        "use the existing CampusSignal classification."
+                    )
+                    import logging
+                    logging.exception(
+                        "Structured dashboard extraction failed."
+                    )
 
                 if used_ai:
                     st.caption("Classified using Qwen.")
@@ -95,3 +130,33 @@ for message_id, saved_message, category, source, channel_id in rows:
             )
 
         st.write(saved_message)
+
+st.divider()
+st.subheader("🧠 Structured announcements")
+
+active_announcements = announcement_repo.list_active()
+st.write(f"Active structured announcements: {len(active_announcements)}")
+
+if not active_announcements:
+    st.info("No structured announcements are available yet.")
+
+for row in active_announcements:
+    (
+        announcement_id, structured_message, announcement_type,
+        summary_title, required_action, date_or_deadline,
+        urgency_level, ranking_reason, confidence_score, source_url,
+        structured_source, structured_channel, received_at,
+        deadline_at, expires_at,
+    ) = row
+
+    with st.container(border=True):
+        st.caption(
+            f"{announcement_type.replace('_', ' ').title()} · "
+            f"{urgency_level} · {structured_source}"
+        )
+        st.write(f"**{summary_title}**")
+        st.write(structured_message)
+        st.write(f"**Required action:** {required_action}")
+        st.write(f"**Date/deadline:** {date_or_deadline}")
+        if expires_at:
+            st.caption(f"Automatic expiry: {expires_at} (UTC)")
