@@ -1,0 +1,362 @@
+[
+  {
+    "id": "U01",
+    "text": "Submit the AI assignment by 24 October 2026 at 6 PM.",
+    "announcement_type": "deadline",
+    "date_or_deadline": "24 October 2026 at 6 PM",
+    "expected_urgency": "HIGH",
+    "duplicate_group": null,
+    "expected_required_action": "Submit the AI assignment"
+  },
+  {
+    "id": "U02",
+    "text": "Register for the coding contest by 24 October 2026 at 5 PM.",
+    "announcement_type": "deadline",
+    "date_or_deadline": "24 October 2026 at 5 PM",
+    "expected_urgency": "HIGH",
+    "duplicate_group": null,
+    "expected_required_action": "Register for the coding contest"
+  },
+  {
+    "id": "U03",
+    "text": "Upload your physics lab record by 24 October 2026 at 7 PM.",
+    "announcement_type": "deadline",
+    "date_or_deadline": "24 October 2026 at 7 PM",
+    "expected_urgency": "HIGH",
+    "duplicate_group": null,
+    "expected_required_action": "Upload your physics lab record"
+  },
+  {
+    "id": "U04",
+    "text": "Complete the scholarship form by 24 October 2026 at 8 PM.",
+    "announcement_type": "deadline",
+    "date_or_deadline": "24 October 2026 at 8 PM",
+    "expected_urgency": "HIGH",
+    "duplicate_group": null,
+    "expected_required_action": "Complete the scholarship form"
+  },
+  {
+    "id": "U05",
+    "text": "Pay the examination fee by 24 October 2026 at 4 PM.",
+    "announcement_type": "deadline",
+    "date_or_deadline": "24 October 2026 at 4 PM",
+    "expected_urgency": "HIGH",
+    "duplicate_group": null,
+    "expected_required_action": "Pay the examination fee"
+  },
+  {
+    "id": "U06",
+    "text": "Confirm your hackathon team by 24 October 2026 at 7 PM.",
+    "announcement_type": "deadline",
+    "date_or_deadline": "24 October 2026 at 7 PM",
+    "expected_urgency": "HIGH",
+    "duplicate_group": null,
+    "expected_required_action": "Confirm your hackathon team"
+  },
+  {
+    "id": "U07",
+    "text": "Submit the internship preference form by 24 October 2026 at 6 PM.",
+    "announcement_type": "deadline",
+    "date_or_deadline": "24 October 2026 at 6 PM",
+    "expected_urgency": "HIGH",
+    "duplicate_group": null,
+    "expected_required_action": "Submit the internship preference form"
+  },
+  {
+    "id": "U08",
+    "text": "Complete the programming quiz by 24 October 2026 at 8 PM.",
+    "announcement_type": "deadline",
+    "date_or_deadline": "24 October 2026 at 8 PM",
+    "expected_urgency": "HIGH",
+    "duplicate_group": null,
+    "expected_required_action": "Complete the programming quiz"
+  },
+  {
+    "id": "U09",
+    "text": "Register for the project review by 24 October 2026 at 5 PM.",
+    "announcement_type": "deadline",
+    "date_or_deadline": "24 October 2026 at 5 PM",
+    "expected_urgency": "HIGH",
+    "duplicate_group": null,
+    "expected_required_action": "Register for the project review"
+  },
+  {
+    "id": "U10",
+    "text": "Upload your signed undertaking by 24 October 2026 at 7 PM.",
+    "announcement_type": "deadline",
+    "date_or_deadline": "24 October 2026 at 7 PM",
+    "expected_urgency": "HIGH",
+    "duplicate_group": null,
+    "expected_required_action": "Upload your signed undertaking"
+  },
+  {
+    "id": "U11",
+    "text": "Apply for the student ambassador role by 24 October 2026 at 6 PM.",
+    "announcement_type": "deadline",
+    "date_or_deadline": "24 October 2026 at 6 PM",
+    "expected_urgency": "HIGH",
+    "duplicate_group": null,
+    "expected_required_action": "Apply for the student ambassador role"
+  },
+  {
+    "id": "U12",
+    "text": "Send your presentation slides by 24 October 2026 at 8 PM.",
+    "announcement_type": "deadline",
+    "date_or_deadline": "24 October 2026 at 8 PM",
+    "expected_urgency": "HIGH",
+    "duplicate_group": null,
+    "expected_required_action": "Send your presentation slides"
+  },
+  {
+    "id": "S01",
+    "text": "The AI lecture has moved from Monday at 10 AM to Tuesday at 11 AM.",
+    "announcement_type": "schedule_change",
+    "date_or_deadline": "Tuesday at 11 AM",
+    "expected_urgency": "LOW",
+    "duplicate_group": null,
+    "expected_required_action": "Not specified"
+  },
+  {
+    "id": "S02",
+    "text": "The physics lab has been rescheduled from 2 PM to 4 PM.",
+    "announcement_type": "schedule_change",
+    "date_or_deadline": "4 PM",
+    "expected_urgency": "LOW",
+    "duplicate_group": null,
+    "expected_required_action": "Not specified"
+  },
+  {
+    "id": "S03",
+    "text": "The club meeting has moved from Friday to Saturday.",
+    "announcement_type": "schedule_change",
+    "date_or_deadline": "Saturday",
+    "expected_urgency": "LOW",
+    "duplicate_group": null,
+    "expected_required_action": "Not specified"
+  },
+  {
+    "id": "S04",
+    "text": "The project review is postponed from 25 October to 27 October.",
+    "announcement_type": "schedule_change",
+    "date_or_deadline": "27 October",
+    "expected_urgency": "LOW",
+    "duplicate_group": null,
+    "expected_required_action": "Not specified"
+  },
+  {
+    "id": "S05",
+    "text": "The seminar venue has changed from Room 101 to Room 204.",
+    "announcement_type": "schedule_change",
+    "date_or_deadline": "Room 204",
+    "expected_urgency": "LOW",
+    "duplicate_group": null,
+    "expected_required_action": "Not specified"
+  },
+  {
+    "id": "S06",
+    "text": "Tomorrow's workshop will begin at 3 PM instead of 2 PM.",
+    "announcement_type": "schedule_change",
+    "date_or_deadline": "3 PM",
+    "expected_urgency": "LOW",
+    "duplicate_group": null,
+    "expected_required_action": "Not specified"
+  },
+  {
+    "id": "S07",
+    "text": "The coding club session has been postponed until next Wednesday.",
+    "announcement_type": "schedule_change",
+    "date_or_deadline": "next Wednesday",
+    "expected_urgency": "LOW",
+    "duplicate_group": null,
+    "expected_required_action": "Not specified"
+  },
+  {
+    "id": "S08",
+    "text": "The mathematics tutorial has moved from Room 12 to Room 15.",
+    "announcement_type": "schedule_change",
+    "date_or_deadline": "Room 15",
+    "expected_urgency": "LOW",
+    "duplicate_group": null,
+    "expected_required_action": "Not specified"
+  },
+  {
+    "id": "D01",
+    "text": "The library will remain open until 9 PM this week.",
+    "announcement_type": "general_update",
+    "date_or_deadline": "Not specified",
+    "expected_urgency": "LOW",
+    "duplicate_group": "LIBRARY_HOURS",
+    "expected_required_action": "Not specified"
+  },
+  {
+    "id": "D02",
+    "text": "Reminder: the library will remain open until 9 PM this week.",
+    "announcement_type": "general_update",
+    "date_or_deadline": "Not specified",
+    "expected_urgency": "LOW",
+    "duplicate_group": "LIBRARY_HOURS",
+    "expected_required_action": "Not specified"
+  },
+  {
+    "id": "D03",
+    "text": "The cafeteria will close at 7 PM today.",
+    "announcement_type": "general_update",
+    "date_or_deadline": "Not specified",
+    "expected_urgency": "LOW",
+    "duplicate_group": "CAFETERIA_HOURS",
+    "expected_required_action": "Not specified"
+  },
+  {
+    "id": "D04",
+    "text": "Please note: the cafeteria will close at 7 PM today.",
+    "announcement_type": "general_update",
+    "date_or_deadline": "Not specified",
+    "expected_urgency": "LOW",
+    "duplicate_group": "CAFETERIA_HOURS",
+    "expected_required_action": "Not specified"
+  },
+  {
+    "id": "D05",
+    "text": "The coding club orientation will take place in Room 20.",
+    "announcement_type": "general_update",
+    "date_or_deadline": "Not specified",
+    "expected_urgency": "LOW",
+    "duplicate_group": "CODING_ORIENTATION",
+    "expected_required_action": "Not specified"
+  },
+  {
+    "id": "D06",
+    "text": "Reminder: coding club orientation will take place in Room 20.",
+    "announcement_type": "general_update",
+    "date_or_deadline": "Not specified",
+    "expected_urgency": "LOW",
+    "duplicate_group": "CODING_ORIENTATION",
+    "expected_required_action": "Not specified"
+  },
+  {
+    "id": "D07",
+    "text": "The campus shuttle will depart from Gate 2.",
+    "announcement_type": "general_update",
+    "date_or_deadline": "Not specified",
+    "expected_urgency": "LOW",
+    "duplicate_group": "CAMPUS_SHUTTLE",
+    "expected_required_action": "Not specified"
+  },
+  {
+    "id": "D08",
+    "text": "Update: the campus shuttle will depart from Gate 2.",
+    "announcement_type": "general_update",
+    "date_or_deadline": "Not specified",
+    "expected_urgency": "LOW",
+    "duplicate_group": "CAMPUS_SHUTTLE",
+    "expected_required_action": "Not specified"
+  },
+  {
+    "id": "D09",
+    "text": "The student help desk is located in the main administration block.",
+    "announcement_type": "general_update",
+    "date_or_deadline": "Not specified",
+    "expected_urgency": "LOW",
+    "duplicate_group": "HELP_DESK_LOCATION",
+    "expected_required_action": "Not specified"
+  },
+  {
+    "id": "D10",
+    "text": "Reminder: the student help desk is located in the main administration block.",
+    "announcement_type": "general_update",
+    "date_or_deadline": "Not specified",
+    "expected_urgency": "LOW",
+    "duplicate_group": "HELP_DESK_LOCATION",
+    "expected_required_action": "Not specified"
+  },
+  {
+    "id": "G01",
+    "text": "The campus garden has new plants near the entrance.",
+    "announcement_type": "general_update",
+    "date_or_deadline": "Not specified",
+    "expected_urgency": "LOW",
+    "duplicate_group": null,
+    "expected_required_action": "Not specified"
+  },
+  {
+    "id": "G02",
+    "text": "The student newsletter is available on the college website.",
+    "announcement_type": "general_update",
+    "date_or_deadline": "Not specified",
+    "expected_urgency": "LOW",
+    "duplicate_group": null,
+    "expected_required_action": "Not specified"
+  },
+  {
+    "id": "G03",
+    "text": "The computer lab received new keyboards this week.",
+    "announcement_type": "general_update",
+    "date_or_deadline": "Not specified",
+    "expected_urgency": "LOW",
+    "duplicate_group": null,
+    "expected_required_action": "Not specified"
+  },
+  {
+    "id": "G04",
+    "text": "The photography club shared pictures from its recent event.",
+    "announcement_type": "general_update",
+    "date_or_deadline": "Not specified",
+    "expected_urgency": "LOW",
+    "duplicate_group": null,
+    "expected_required_action": "Not specified"
+  },
+  {
+    "id": "G05",
+    "text": "The college canteen has added a new breakfast option.",
+    "announcement_type": "general_update",
+    "date_or_deadline": "Not specified",
+    "expected_urgency": "LOW",
+    "duplicate_group": null,
+    "expected_required_action": "Not specified"
+  },
+  {
+    "id": "G06",
+    "text": "The campus Wi-Fi maintenance was completed successfully.",
+    "announcement_type": "general_update",
+    "date_or_deadline": "Not specified",
+    "expected_urgency": "LOW",
+    "duplicate_group": null,
+    "expected_required_action": "Not specified"
+  },
+  {
+    "id": "G07",
+    "text": "The student council welcomed the new volunteers.",
+    "announcement_type": "general_update",
+    "date_or_deadline": "Not specified",
+    "expected_urgency": "LOW",
+    "duplicate_group": null,
+    "expected_required_action": "Not specified"
+  },
+  {
+    "id": "G08",
+    "text": "A cultural programme was held in the main auditorium.",
+    "announcement_type": "general_update",
+    "date_or_deadline": "Not specified",
+    "expected_urgency": "LOW",
+    "duplicate_group": null,
+    "expected_required_action": "Not specified"
+  },
+  {
+    "id": "G09",
+    "text": "The sports ground will be cleaned this weekend.",
+    "announcement_type": "general_update",
+    "date_or_deadline": "Not specified",
+    "expected_urgency": "LOW",
+    "duplicate_group": null,
+    "expected_required_action": "Not specified"
+  },
+  {
+    "id": "G10",
+    "text": "The college website has a refreshed homepage design.",
+    "announcement_type": "general_update",
+    "date_or_deadline": "Not specified",
+    "expected_urgency": "LOW",
+    "duplicate_group": null,
+    "expected_required_action": "Not specified"
+  }
+]
