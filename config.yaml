@@ -1,0 +1,11 @@
+user_preferences:
+  delivery_channel: "telegram"    # telegram, whatsapp, stdout
+  digest_mode: "hybrid"           # text_only, voice_only, hybrid
+  preferred_language: "en"        # en, hi, mr
+  tts_engine: "piper"
+  voice_speed: 1.1                # speed multiplier
+  max_duration_sec: 30            # hard length cap
+  audio_format: "ogg"             # ogg or wav
+
+voices:
+  en: "en_US-lessac-medium"
