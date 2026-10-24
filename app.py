@@ -1,22 +1,33 @@
 """
-app.py — CampusSignal  |  voice branch
-- Analyse & save messages
-- 🔊 Listen button: speaks any message aloud
-  • Uses Kokoro TTS (Docker) when available → speed 0.25x–3.0x
-  • Falls back to gTTS automatically when Docker is not running
+app.py — CampusSignal (Voice branch)
+Interactive college announcement assistant with:
+  • Message classification and persistence (SQLite)
+  • ▶️ Start / ⏹️ Stop TTS Voice Player
+  • Variable playback speed control (0.25x – 3.0x) powered by Kokoro with local fallback
+  • Mini Play/Stop controls on every saved message
 """
 
 import sqlite3
-import io
-
 import streamlit as st
 
 from tts_kokoro import synthesize_stream, check_kokoro_health
 
-st.set_page_config(page_title="CampusSignal", page_icon="📚", layout="wide")
+st.set_page_config(
+    page_title="CampusSignal | Voice Digest",
+    page_icon="🔊",
+    layout="wide",
+)
 
-# ── Database ──────────────────────────────────────────────────────
-conn   = sqlite3.connect("campussignal.db", check_same_thread=False)
+# ── Session State for Audio Player ─────────────────────────────────
+if "audio_bytes" not in st.session_state:
+    st.session_state.audio_bytes = None
+if "current_playing_title" not in st.session_state:
+    st.session_state.current_playing_title = ""
+if "engine_used" not in st.session_state:
+    st.session_state.engine_used = ""
+
+# ── Database Initialization ────────────────────────────────────────
+conn = sqlite3.connect("campussignal.db", check_same_thread=False)
 cursor = conn.cursor()
 cursor.execute("""
     CREATE TABLE IF NOT EXISTS messages (
@@ -40,122 +51,129 @@ def classify_message(text: str) -> str:
     return "💬 Other"
 
 
-# ── Header ────────────────────────────────────────────────────────
-st.title("📚 CampusSignal")
-st.caption("Your college Slack communication — organized and spoken aloud.")
+# ── Title & Intro ──────────────────────────────────────────────────
+st.title("🔊 CampusSignal — Voice Assistant")
+st.caption("Convert Slack updates into action digests with high-speed voice playback (0.25x – 3.0x).")
 
 col_main, col_side = st.columns([2, 1])
 
-# ── Main panel ────────────────────────────────────────────────────
+# ── Main Input & Control Panel ─────────────────────────────────────
 with col_main:
-    st.subheader("📥 Paste a Slack Message")
+    st.subheader("📥 Announcement Input")
     message = st.text_area(
-        "Message:",
-        placeholder="Example: Submit the lab report by 11 PM tonight!",
-        height=130,
+        "Paste a Slack Announcement:",
+        value="Lab report submission deadline moved to tonight 11 PM. Submit via portal.",
+        height=100,
     )
 
-    # ── Speed slider (shown always, used by Kokoro when available) ──
-    st.markdown("**🔊 Voice Speed**")
+    # Speed control slider
+    st.markdown("##### ⚡ Playback Speed (Kokoro Engine)")
     speed = st.slider(
-        "Playback speed  (1.0 = normal, up to 3×)",
+        "Select speed multiplier:",
         min_value=0.25,
         max_value=3.0,
-        value=1.0,
+        value=1.5,
         step=0.25,
-        help="Speed control works with Kokoro TTS. gTTS fallback always plays at normal speed.",
+        help="Adjust voice tempo from relaxed (0.5x) to fast skimming (3.0x).",
     )
 
-    # ── Buttons ─────────────────────────────────────────────────────
-    btn1, btn2 = st.columns(2)
-    analyse_btn = btn1.button("🔍 Analyse Message", use_container_width=True)
-    tts_btn     = btn2.button("🔊 Listen",          use_container_width=True)
+    # Control buttons row: Analyse, Start Voice, Stop Voice
+    btn_col1, btn_col2, btn_col3 = st.columns([1.2, 1.2, 1])
+    analyse_btn = btn_col1.button("🔍 Analyse & Save", use_container_width=True)
+    start_tts_btn = btn_col2.button("▶️ Start Voice", type="primary", use_container_width=True)
+    stop_tts_btn = btn_col3.button("⏹️ Stop Voice", use_container_width=True)
 
-    # ── Analyse ─────────────────────────────────────────────────────
+    # 1. Action: Analyse & Save
     if analyse_btn:
         if not message.strip():
-            st.warning("Please enter a message first.")
+            st.warning("Please enter announcement text.")
         else:
             normalized = message.lower().strip()
             cursor.execute("SELECT id FROM messages WHERE normalized = ?", (normalized,))
             if cursor.fetchone():
-                st.warning("🔁 Duplicate — this message is already saved.")
+                st.warning("🔁 Duplicate: This announcement is already saved in the database.")
             else:
-                category = classify_message(normalized)
+                cat = classify_message(normalized)
                 cursor.execute(
                     "INSERT INTO messages (message, normalized, category) VALUES (?, ?, ?)",
-                    (message.strip(), normalized, category),
+                    (message.strip(), normalized, cat),
                 )
                 conn.commit()
-                st.success(f"✅ Saved!  Category: **{category}**")
+                st.success(f"✅ Saved under category: **{cat}**")
 
-    # ── 🔊 Listen ────────────────────────────────────────────────────
-    if tts_btn:
+    # 2. Action: Stop TTS
+    if stop_tts_btn:
+        st.session_state.audio_bytes = None
+        st.session_state.current_playing_title = ""
+        st.session_state.engine_used = ""
+        st.rerun()
+
+    # 3. Action: Start TTS
+    if start_tts_btn:
         if not message.strip():
-            st.warning("Please enter a message to listen to.")
+            st.warning("Please enter or paste an announcement first.")
         else:
-            kokoro_on = check_kokoro_health()
-            engine_label = f"Kokoro ({speed}×)" if kokoro_on else "gTTS (fallback, normal speed)"
-
-            with st.spinner(f"🎙️ Generating speech via {engine_label} ..."):
+            with st.spinner(f"🎙️ Synthesizing voice at {speed}× speed..."):
                 try:
-                    audio_buf, engine_used = synthesize_stream(
+                    buf, engine_name = synthesize_stream(
                         text=message.strip(),
                         voice="af_heart",
                         speed=speed,
                         fmt="mp3",
                     )
-                    st.audio(audio_buf, format="audio/mp3")
-                    st.caption(f"🔊 Played via **{engine_used}**")
+                    st.session_state.audio_bytes = buf.getvalue()
+                    st.session_state.current_playing_title = message.strip()[:80]
+                    st.session_state.engine_used = engine_name
+                except Exception as err:
+                    st.error(f"Voice generation error: {err}")
 
-                    if not kokoro_on:
-                        st.info(
-                            "💡 **Tip:** Start Kokoro with Docker for better voice quality "
-                            "and speed control up to 3×:\n\n"
-                            "```\ndocker run -p 8880:8880 ghcr.io/remsky/kokoro-fastapi-cpu:latest\n```"
-                        )
-                except Exception as e:
-                    st.error(f"TTS error: {e}")
+    # ── Dedicated Audio Player Widget ──────────────────────────────
+    if st.session_state.audio_bytes:
+        st.divider()
+        st.markdown(f"**Now Playing:** *\"{st.session_state.current_playing_title}...\"*")
+        
+        # Streamlit standard audio player with built-in play, pause, seek, volume, and stop
+        st.audio(st.session_state.audio_bytes, format="audio/mp3", autoplay=True)
+        st.caption(f"Engine: **{st.session_state.engine_used}** · Click **⏹️ Stop Voice** to dismiss.")
 
 
-# ── Side panel: status + saved messages ──────────────────────────
+# ── Sidebar: Status & Saved Announcements ─────────────────────────
 with col_side:
-    st.subheader("⚙️ TTS Status")
-    if check_kokoro_health():
-        st.success("🟢 Kokoro online — speed control active")
+    st.subheader("⚙️ System Status")
+    kokoro_active = check_kokoro_health()
+    if kokoro_active:
+        st.success("🟢 **Kokoro-FastAPI Online** (Docker :8880)")
     else:
-        st.warning("🟡 Kokoro offline — using gTTS fallback")
-        with st.expander("Upgrade to Kokoro (optional)"):
-            st.code(
-                "docker run -p 8880:8880 "
-                "ghcr.io/remsky/kokoro-fastapi-cpu:latest",
-                language="bash",
-            )
+        st.info("⚡ **Offline Voice Ready** (Instant Mac/Local Engine)")
 
     st.divider()
-    st.subheader("📨 Saved Messages")
-    cursor.execute("SELECT id, message, category FROM messages ORDER BY id DESC LIMIT 20")
+    st.subheader("📨 Saved Announcements")
+    cursor.execute("SELECT id, message, category FROM messages ORDER BY id DESC LIMIT 15")
     rows = cursor.fetchall()
-    st.caption(f"{len(rows)} unique message(s) saved")
+    st.caption(f"Total stored messages: {len(rows)}")
 
     for msg_id, saved_msg, cat in rows:
         with st.container(border=True):
-            st.caption(f"#{msg_id} · {cat}")
-            # 🔊 mini listen button per saved message
-            if st.button("🔊", key=f"play_{msg_id}", help="Listen to this message"):
-                kokoro_on = check_kokoro_health()
-                with st.spinner("Generating audio..."):
+            head_col, play_col = st.columns([3, 1])
+            head_col.caption(f"#{msg_id} · {cat}")
+            
+            # Mini Play button on each item
+            if play_col.button("▶️ Play", key=f"play_item_{msg_id}"):
+                with st.spinner("Loading audio..."):
                     try:
-                        audio_buf, engine_used = synthesize_stream(
+                        buf, engine_name = synthesize_stream(
                             text=saved_msg,
                             voice="af_heart",
                             speed=speed,
                             fmt="mp3",
                         )
-                        st.audio(audio_buf, format="audio/mp3")
-                        st.caption(f"via {engine_used}")
+                        st.session_state.audio_bytes = buf.getvalue()
+                        st.session_state.current_playing_title = saved_msg[:60]
+                        st.session_state.engine_used = engine_name
+                        st.rerun()
                     except Exception as e:
-                        st.error(f"TTS error: {e}")
+                        st.error(f"Playback error: {e}")
+
             st.write(saved_msg[:120] + ("…" if len(saved_msg) > 120 else ""))
 
 conn.close()
