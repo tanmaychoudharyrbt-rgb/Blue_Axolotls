@@ -49,8 +49,13 @@ SCHEDULE_CHANGE_PHRASES = (
     "rescheduled from",
     "time has changed from",
     "date has changed from",
+    "has changed from",
+    "has been changed from",
     "has been rescheduled",
     "has been postponed",
+    "is postponed from",
+    "postponed from",
+    "postponed until",
     "has been brought forward",
 )
 
@@ -154,24 +159,50 @@ Announcement text:
                 "how soon it is."
             )
 
-    # Apply deterministic corrections for clear schedule-change messages.
-    is_schedule_change = any(
-        phrase in message_lower for phrase in SCHEDULE_CHANGE_PHRASES
+    # Detect explicit schedule changes, not merely mentions of a time.
+    has_instead_of = bool(
+        re.search(
+            r"\b(?:will begin|will start|begins|starts)\b"
+            r".*\binstead of\b",
+            message_lower,
+        )
+    )
+
+    is_schedule_change = (
+        any(
+            phrase in message_lower
+            for phrase in SCHEDULE_CHANGE_PHRASES
+        )
+        or has_instead_of
     )
 
     if is_schedule_change:
         data["announcement_type"] = "schedule_change"
+
+        # Prefer the new value after "to" or "until".
+        # Stop before punctuation or an "instead of" comparison.
         new_schedule = re.search(
-            r"\bto\s+([^.!?\n]+)",
+            r"\b(?:to|until)\s+(.+?)"
+            r"(?=\s+instead of\b|[.!?\n]|$)",
             message,
             re.IGNORECASE,
         )
 
-        if new_schedule:
-            data["date_or_deadline"] = (
-                normalize_month_spacing(new_schedule.group(1).strip())
+        # Handle wording such as "will begin at 3 PM instead of 2 PM".
+        if not new_schedule and has_instead_of:
+            new_schedule = re.search(
+                r"\b(?:will begin|will start|begins|starts)\s+"
+                r"(?:at\s+)?(.+?)\s+instead of\b",
+                message,
+                re.IGNORECASE,
             )
 
+        if new_schedule:
+            data["date_or_deadline"] = normalize_month_spacing(
+                new_schedule.group(1).strip()
+            )
+
+        data["required_action"] = "Not specified"
         data["ranking_reason"] = (
             "The message explicitly describes a schedule change."
         )
@@ -190,14 +221,20 @@ Announcement text:
                 f"{data['required_action']}."
             )
 
-    elif (
-        "will remain open until" in message_lower
-        and not any(
-            word in message_lower
-            for word in ("extended", "changed", "moved", "rescheduled")
+    else:
+        # A statement about something happening is not automatically
+        # an instruction for the reader to do something.
+        explicit_requirement = re.search(
+            r"\b(?:you|students?|everyone|all participants)\s+"
+            r"(?:must|need to|are required to|should)\b",
+            message_lower,
         )
-    ):
-        data["announcement_type"] = "general_update"
+
+        if explicit_requirement:
+            data["announcement_type"] = "required_action"
+        else:
+            data["announcement_type"] = "general_update"
+            data["required_action"] = "Not specified"
 
     # Correct common spacing errors in model-generated explanations.
     data["ranking_reason"] = normalize_month_spacing(
