@@ -15,35 +15,78 @@ DB_NAME = os.path.join(
 MODEL = "qwen3:4b"
 
 URGENT_WORDS = [
-    "mandatory", "compulsory", "urgent", "immediately",
-    "asap", "must attend", "action required",
-    "final reminder", "emergency", "critical notice",
+    "urgent", "urgently", "emergency", "immediately",
+    "asap", "action required", "mandatory", "compulsory",
+    "must attend", "attendance is compulsory",
+    "attendance is mandatory", "strictly mandatory",
+    "final reminder", "last reminder", "last chance",
+    "final warning", "deadline today", "due today",
+    "submit today", "report immediately", "no extension",
+    "deadline extended", "deadline approaching",
+    "last date", "last date to submit", "overdue",
     "cancelled", "canceled", "postponed", "rescheduled",
-    "deadline today", "submit today", "report immediately"
+    "suspended", "important notice", "critical notice",
+    "immediate action", "time sensitive", "time-sensitive",
+    "failure to comply", "attendance required",
+    "registration closes today", "closes tonight"
+]
+
+EXAM_WORDS = [
+    "exam", "exams", "examination", "examinations",
+    "endsem", "end-sem", "end sem", "end semester",
+    "midsem", "mid-sem", "mid sem", "mid semester",
+    "midterm", "mid-term", "finals", "final exam",
+    "unit test", "class test", "surprise test",
+    "test", "quiz", "mock test", "practice test",
+    "assessment", "internal assessment", "evaluation",
+    "viva", "practical exam", "lab exam",
+    "exam timetable", "exam schedule", "date sheet",
+    "hall ticket", "admit card", "exam form",
+    "exam registration", "exam postponed",
+    "exam cancelled", "exam canceled",
+    "exam rescheduled", "exam syllabus",
+    "question paper", "previous year questions",
+    "pyq", "answer key", "results declared",
+    "exam results", "revaluation", "backlog exam",
+    "supplementary exam", "retake", "grading"
 ]
 
 ACADEMIC_WORDS = [
-    "worksheet", "assignment", "homework", "coursework",
+    "assignment", "assignments", "homework",
+    "coursework", "worksheet", "worksheets",
     "problem set", "practice set", "tutorial sheet",
-    "notes", "lecture", "slides", "syllabus", "curriculum",
-    "exam", "examination", "test", "quiz", "midsem",
-    "mid-sem", "mid semester", "endsem", "end-sem",
-    "finals", "lab", "laboratory", "practical", "experiment",
-    "viva", "submission", "due date", "timetable",
-    "time table", "question paper", "pyq", "study material",
-    "grades", "marks", "results", "moodle", "semester",
-    "internal assessment", "lecture recording"
+    "lecture", "lectures", "lecture notes",
+    "notes", "slides", "ppt", "pdf notes",
+    "syllabus", "curriculum", "study material",
+    "reference material", "textbook", "reading material",
+    "chapter", "unit", "module", "lab", "laboratory",
+    "experiment", "lab manual", "lab record",
+    "practical", "submission", "submit", "due date",
+    "moodle", "classroom", "attendance",
+    "timetable", "time table", "lecture recording",
+    "project", "project report", "research paper",
+    "grades", "marks", "results", "credits",
+    "academic calendar", "course registration",
+    "department notice", "faculty notice",
+    "office hours", "tutorial", "doubt session"
 ]
 
 EVENT_WORDS = [
-    "fest", "festival", "concert", "event", "hackathon",
-    "workshop", "seminar", "conference", "competition",
-    "contest", "tournament", "auditions", "orientation",
-    "freshers", "farewell", "club recruitment", "club induction",
-    "register now", "sign up", "guest speaker", "open mic",
-    "exhibition", "showcase", "meetup", "sports day",
-    "annual day", "cultural night", "coding competition",
-    "robotics event", "volunteer for", "tickets available"
+    "fest", "festival", "concert", "hackathon",
+    "workshop", "seminar", "conference", "contest",
+    "competition", "coding contest", "coding competition",
+    "tournament", "sports day", "auditions",
+    "orientation", "freshers", "farewell",
+    "club recruitment", "club induction", "club meeting",
+    "registration open", "register now", "sign up",
+    "guest speaker", "open mic", "exhibition",
+    "showcase", "meetup", "annual day",
+    "cultural night", "robotics event", "volunteer",
+    "volunteering", "networking event", "webinar",
+    "ideathon", "quiz competition", "prize distribution",
+    "certificate ceremony", "award ceremony",
+    "technical event", "non-technical event",
+    "event registration", "event venue"
 ]
 
 
