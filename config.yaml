@@ -1,14 +1,28 @@
 user_preferences:
-  delivery_channel: "slack"    # slack, stdout
+  delivery_channel: "slack"       # slack, stdout
   digest_mode: "hybrid"           # text_only, voice_only, hybrid
   preferred_language: "en"        # en, hi, mr
-  tts_engine: "piper"
-  voice_speed: 1.1                # speed multiplier
+  tts_engine: "kokoro"            # changed from piper → kokoro
+  voice_speed: 1.0                # speed multiplier: 0.25 to 3.0
   max_duration_sec: 30            # hard length cap
-  audio_format: "ogg"             # ogg or wav
+  audio_format: "mp3"             # mp3, wav, ogg  (Kokoro supports all)
 
-voices:
-  en: "en_US-lessac-medium"
+# Kokoro voice IDs per language
+# Available voices: af_heart, af_bella, af_nicole, af_sarah, af_sky
+#                   am_adam, am_michael, bf_emma, bf_isabella, bm_george, bm_lewis
+kokoro_voices:
+  en: "af_heart"
+  hi: "af_heart"    # Kokoro doesn't have native Hindi yet; English voice used
+  mr: "af_heart"    # same fallback
 
-  hi: "hi_IN-priyamvada-medium"
-  mr: "mr_IN-google-medium"
+# Kokoro FastAPI server config
+kokoro:
+  base_url: "http://localhost:8880/v1"   # Local Docker default
+  api_key:  "not-needed"                 # Placeholder for local; use real key for cloud
+
+# Calendar integration
+calendar:
+  timezone: "Asia/Kolkata"       # Change to your local timezone
+  default_event_duration_hours: 1
+  google_credentials_file: "credentials_google.json"
+  outlook_client_id: ""          # Fill in your Azure App Client ID
