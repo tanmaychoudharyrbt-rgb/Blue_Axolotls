@@ -1,5 +1,5 @@
 user_preferences:
-  delivery_channel: "telegram"    # telegram, whatsapp, stdout
+  delivery_channel: "slack"    # slack, stdout
   digest_mode: "hybrid"           # text_only, voice_only, hybrid
   preferred_language: "en"        # en, hi, mr
   tts_engine: "piper"
