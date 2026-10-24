@@ -1,14 +1,34 @@
 
 import streamlit as st
+import sqlite3
 
 st.set_page_config(page_title="CampusSignal", page_icon="📚")
 
+# Connect to the database (creates it automatically)
+conn = sqlite3.connect("campussignal.db")
+cursor = conn.cursor()
+
+cursor.execute("""
+    CREATE TABLE IF NOT EXISTS messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        message TEXT NOT NULL,
+        normalized TEXT NOT NULL,
+        category TEXT NOT NULL
+    )
+""")
+conn.commit()
+
+def classify_message(text):
+    if any(word in text for word in ["worksheet", "assignment", "notes", "lecture"]):
+        return "📚 Academic"
+    elif any(word in text for word in ["mandatory", "compulsory", "attendance", "urgent"]):
+        return "🚨 Important / Urgent"
+    elif any(word in text for word in ["fest", "concert", "event", "registration"]):
+        return "🎉 Event"
+    return "💬 Other"
+
 st.title("📚 CampusSignal")
 st.write("Your college communication, organized.")
-
-# Store messages during this app session
-if "messages" not in st.session_state:
-    st.session_state.messages = []
 
 message = st.text_area(
     "Paste a college Slack message here:",
@@ -19,35 +39,39 @@ if st.button("Analyze message"):
     if not message.strip():
         st.warning("Please enter a message.")
     else:
-        text = message.lower().strip()
+        normalized = message.lower().strip()
 
-        # Check for an exact match, ignoring capitalization and outer spaces
-        duplicate = any(
-            old_message.lower().strip() == text
-            for old_message in st.session_state.messages
+        cursor.execute(
+            "SELECT id FROM messages WHERE normalized = ?",
+            (normalized,)
         )
+        existing = cursor.fetchone()
 
-        if duplicate:
-            st.warning("🔁 Duplicate detected! This message has already been submitted.")
+        if existing:
+            st.warning("🔁 Duplicate detected! This message is already in the database.")
         else:
-            st.session_state.messages.append(message)
+            category = classify_message(normalized)
 
-            if any(word in text for word in ["worksheet", "assignment", "notes", "lecture"]):
-                category = "📚 Academic"
-            elif any(word in text for word in ["mandatory", "compulsory", "attendance", "urgent"]):
-                category = "🚨 Important / Urgent"
-            elif any(word in text for word in ["fest", "concert", "event", "registration"]):
-                category = "🎉 Event"
-            else:
-                category = "💬 Other"
+            cursor.execute(
+                "INSERT INTO messages (message, normalized, category) VALUES (?, ?, ?)",
+                (message.strip(), normalized, category)
+            )
+            conn.commit()
 
-            st.success("New message received!")
+            st.success("New message saved!")
             st.write("**Category:**", category)
-            st.write("**Message:**", message)
 
 st.divider()
-st.subheader("📨 Messages received this session")
-st.write(f"Total unique messages: {len(st.session_state.messages)}")
+st.subheader("📨 Saved messages")
 
-for i, saved_message in enumerate(st.session_state.messages, start=1):
-    st.write(f"{i}. {saved_message}")
+cursor.execute("SELECT id, message, category FROM messages ORDER BY id DESC")
+rows = cursor.fetchall()
+
+st.write(f"Total unique messages: {len(rows)}")
+
+for message_id, saved_message, category in rows:
+    with st.container(border=True):
+        st.caption(f"Message #{message_id} · {category}")
+        st.write(saved_message)
+
+conn.close()
