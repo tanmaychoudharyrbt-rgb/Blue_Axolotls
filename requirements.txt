@@ -1,20 +1,19 @@
-# ── Core Streamlit app ──────────────────────────────────────────
+# ── Core ────────────────────────────────────────────────────────
 streamlit>=1.35.0
 pyyaml>=6.0
 requests>=2.31.0
 python-dotenv>=1.0.0
 
-# ── Kokoro TTS (uses OpenAI-compatible API via requests) ─────────
-# No extra package needed — tts_kokoro.py uses only the `requests` lib.
-# Start Kokoro FastAPI server with Docker:
-#   CPU:  docker run -p 8880:8880 ghcr.io/remsky/kokoro-fastapi-cpu:latest
-#   GPU:  docker run --gpus all -p 8880:8880 ghcr.io/remsky/kokoro-fastapi:latest
+# ── TTS ─────────────────────────────────────────────────────────
+# gTTS — fallback TTS, works immediately (needs internet, no Docker)
+gTTS>=2.3.2
 
-# ── Utilities already in project ────────────────────────────────
+# Kokoro FastAPI is used via Docker (no pip install needed):
+#   docker run -p 8880:8880 ghcr.io/remsky/kokoro-fastapi-cpu:latest
+
+# ── Utilities ───────────────────────────────────────────────────
 altair>=5.0
 pandas>=2.0
 pillow>=10.0
 numpy>=1.24
 python-dateutil>=2.8
-
-# NOTE: Google Calendar + MSAL (Outlook) deps live in the `calendar` branch requirements.txt
