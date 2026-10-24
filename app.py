@@ -1,77 +1,97 @@
 
-import streamlit as st
 import sqlite3
+import streamlit as st
 
-st.set_page_config(page_title="CampusSignal", page_icon="📚")
+from campussignal_core import (
+    DB_NAME,
+    init_db,
+    classify_message,
+    message_exists,
+    save_message
+)
 
-# Connect to the database (creates it automatically)
-conn = sqlite3.connect("campussignal.db")
-cursor = conn.cursor()
+st.set_page_config(
+    page_title="CampusSignal",
+    page_icon="📚"
+)
 
-cursor.execute("""
-    CREATE TABLE IF NOT EXISTS messages (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        message TEXT NOT NULL,
-        normalized TEXT NOT NULL,
-        category TEXT NOT NULL
-    )
-""")
-conn.commit()
-
-def classify_message(text):
-    if any(word in text for word in ["worksheet", "assignment", "notes", "lecture"]):
-        return "📚 Academic"
-    elif any(word in text for word in ["mandatory", "compulsory", "attendance", "urgent"]):
-        return "🚨 Important / Urgent"
-    elif any(word in text for word in ["fest", "concert", "event", "registration"]):
-        return "🎉 Event"
-    return "💬 Other"
+init_db()
 
 st.title("📚 CampusSignal")
 st.write("Your college communication, organized.")
+st.caption("Local AI classification powered by Qwen.")
 
 message = st.text_area(
-    "Paste a college Slack message here:",
-    placeholder="Example: Register for the college fest!"
+    "Paste a college message:",
+    placeholder="Example: The endsem timetable is available on Moodle."
 )
 
 if st.button("Analyze message"):
     if not message.strip():
         st.warning("Please enter a message.")
+
     else:
-        normalized = message.lower().strip()
+        clean_message = message.strip()
 
-        cursor.execute(
-            "SELECT id FROM messages WHERE normalized = ?",
-            (normalized,)
-        )
-        existing = cursor.fetchone()
+        if message_exists(clean_message):
+            st.warning("🔁 This exact message is already saved.")
 
-        if existing:
-            st.warning("🔁 Duplicate detected! This message is already in the database.")
         else:
-            category = classify_message(normalized)
+            with st.spinner("Classifying message..."):
+                category, used_ai = classify_message(clean_message)
 
-            cursor.execute(
-                "INSERT INTO messages (message, normalized, category) VALUES (?, ?, ?)",
-                (message.strip(), normalized, category)
+            saved, message_id = save_message(
+                message=clean_message,
+                category=category,
+                source="dashboard"
             )
-            conn.commit()
 
-            st.success("New message saved!")
-            st.write("**Category:**", category)
+            if saved:
+                st.success("Message saved!")
+                st.write("**Category:**", category)
+
+                if used_ai:
+                    st.caption("Classified using Qwen.")
+                else:
+                    st.warning(
+                        "Qwen was unavailable. "
+                        "Used the keyword classifier instead."
+                    )
+            else:
+                st.warning(
+                    "🔁 This message was saved by another process."
+                )
+
 
 st.divider()
 st.subheader("📨 Saved messages")
 
-cursor.execute("SELECT id, message, category FROM messages ORDER BY id DESC")
-rows = cursor.fetchall()
+with sqlite3.connect(DB_NAME) as conn:
+    rows = conn.execute(
+        """
+        SELECT id, message, category, source, channel_id
+        FROM messages
+        ORDER BY id DESC
+        """
+    ).fetchall()
 
 st.write(f"Total unique messages: {len(rows)}")
 
-for message_id, saved_message, category in rows:
-    with st.container(border=True):
-        st.caption(f"Message #{message_id} · {category}")
-        st.write(saved_message)
+if not rows:
+    st.info("No messages have been saved yet.")
 
-conn.close()
+for message_id, saved_message, category, source, channel_id in rows:
+    with st.container(border=True):
+        if source == "slack":
+            st.caption(
+                f"Message #{message_id} · {category} · Slack"
+            )
+
+            if channel_id:
+                st.caption(f"Channel ID: {channel_id}")
+        else:
+            st.caption(
+                f"Message #{message_id} · {category} · Dashboard"
+            )
+
+        st.write(saved_message)
