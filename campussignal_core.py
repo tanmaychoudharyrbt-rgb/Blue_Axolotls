@@ -144,8 +144,13 @@ def contains_any(text, words):
 def classify_with_rules(message):
     text = message.lower()
 
+    # Urgency always takes priority.
     if contains_any(text, URGENT_WORDS):
         return "🚨 Urgent"
+
+    # Exam-related messages get their own category.
+    if contains_any(text, EXAM_WORDS):
+        return "📝 Exam Alert"
 
     if contains_any(text, ACADEMIC_WORDS):
         return "📚 Academic"
@@ -156,8 +161,15 @@ def classify_with_rules(message):
     return "💬 Other"
 
 
+
 def classify_with_qwen(message):
-    categories = ["Academic", "Urgent", "Event", "Other"]
+    categories = [
+        "Academic",
+        "Urgent",
+        "Exam Alert",
+        "Event",
+        "Other"
+    ]
 
     payload = {
         "model": MODEL,
@@ -175,25 +187,49 @@ def classify_with_qwen(message):
             "required": ["category"]
         },
         "options": {
-            "num_predict": 30,
+            "num_predict": 40,
             "temperature": 0
         },
         "messages": [
             {
                 "role": "system",
                 "content": (
-                    "Classify this college message into one category. "
-                    "Academic: assignments, worksheets, exams, labs, "
-                    "lectures, notes, submissions, midsems, endsems, "
-                    "PYQs, timetables and grades. "
-                    "Urgent: emergencies, compulsory attendance, "
-                    "immediate action, cancellations and critical notices. "
-                    "Event: fests, concerts, hackathons, workshops, "
-                    "seminars, competitions, club activities and registrations. "
-                    "Other: general information and casual conversation. "
-                    "Understand synonyms, abbreviations and informal wording. "
-                    "Use the whole message, not just keywords. "
-                    "Return the category in the required JSON format."
+                    "Classify this college message into exactly one category.\n\n"
+
+                    "Urgent: Messages requiring immediate attention or action, "
+                    "emergencies, compulsory attendance, immediate deadlines, "
+                    "critical notices, cancellations, postponements, and "
+                    "important changes requiring prompt action.\n"
+
+                    "Exam Alert: Exam announcements, exam schedules, "
+                    "midsems, endsems, midterms, tests, quizzes, mock tests, "
+                    "vivas, practical exams, exam forms, hall tickets, "
+                    "exam results, and exam-related instructions.\n"
+
+                    "Academic: Assignments, homework, worksheets, lecture "
+                    "notes, slides, labs, projects, syllabus, study material, "
+                    "submissions, timetables, grades, and regular coursework.\n"
+
+                    "Event: Hackathons, contests, competitions, fests, "
+                    "seminars, workshops, club activities, tournaments, "
+                    "auditions, and event registrations.\n"
+
+                    "Other: Casual conversation and general messages "
+                    "that do not fit the categories above.\n\n"
+
+                    "PRIORITY RULES:\n"
+                    "1. If immediate action is required, classify as Urgent, "
+                    "even if the message concerns an exam or assignment.\n"
+                    "2. Otherwise, classify exam-related announcements as "
+                    "Exam Alert, not Academic.\n"
+                    "3. Classify academic coursework as Academic.\n"
+                    "4. Classify events and competitions as Event, unless "
+                    "immediate action makes them Urgent.\n"
+                    "5. Do not assume a message is urgent merely because "
+                    "it mentions an exam, deadline, or important topic. "
+                    "Consider the full context.\n"
+                    "6. Understand synonyms, abbreviations, and informal "
+                    "college language. Return only the required category."
                 )
             },
             {
@@ -219,6 +255,7 @@ def classify_with_qwen(message):
     labels = {
         "Academic": "📚 Academic",
         "Urgent": "🚨 Urgent",
+        "Exam Alert": "📝 Exam Alert",
         "Event": "🎉 Event",
         "Other": "💬 Other"
     }
@@ -227,6 +264,7 @@ def classify_with_qwen(message):
         raise ValueError("Invalid category from Qwen")
 
     return labels[category]
+
 
 
 def classify_message(message):
