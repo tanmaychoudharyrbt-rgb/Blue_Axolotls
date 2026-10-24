@@ -10,17 +10,11 @@ python-dotenv>=1.0.0
 #   CPU:  docker run -p 8880:8880 ghcr.io/remsky/kokoro-fastapi-cpu:latest
 #   GPU:  docker run --gpus all -p 8880:8880 ghcr.io/remsky/kokoro-fastapi:latest
 
-# ── Google Calendar ──────────────────────────────────────────────
-google-api-python-client>=2.100.0
-google-auth-httplib2>=0.2.0
-google-auth-oauthlib>=1.1.0
-
-# ── Microsoft Outlook (Graph API) ───────────────────────────────
-msal>=1.24.0
-
 # ── Utilities already in project ────────────────────────────────
 altair>=5.0
 pandas>=2.0
 pillow>=10.0
 numpy>=1.24
 python-dateutil>=2.8
+
+# NOTE: Google Calendar + MSAL (Outlook) deps live in the `calendar` branch requirements.txt

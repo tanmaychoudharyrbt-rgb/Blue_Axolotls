@@ -20,9 +20,4 @@ kokoro:
   base_url: "http://localhost:8880/v1"   # Local Docker default
   api_key:  "not-needed"                 # Placeholder for local; use real key for cloud
 
-# Calendar integration
-calendar:
-  timezone: "Asia/Kolkata"       # Change to your local timezone
-  default_event_duration_hours: 1
-  google_credentials_file: "credentials_google.json"
-  outlook_client_id: ""          # Fill in your Azure App Client ID
+# NOTE: Calendar config lives in the `calendar` branch (config.yaml there has calendar section)

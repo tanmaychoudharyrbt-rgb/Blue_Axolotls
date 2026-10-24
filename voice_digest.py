@@ -1,11 +1,13 @@
 """
-voice_digest.py — Updated to use Kokoro-FastAPI TTS + Google & Outlook Calendar sync.
+voice_digest.py — Kokoro-FastAPI TTS digest builder.
 
-Changes from original:
+Changes from original (Piper):
   • tts.py  (Piper)  →  tts_kokoro.py  (Kokoro-FastAPI)
-  • New --calendar flag: auto-syncs deadlines to Google + Outlook Calendar
-  • Speed range extended to 0.25–3.0 (was 0.5–2.0 with Piper)
-  • Audio format defaulted to mp3 (Kokoro native; was ogg with Piper)
+  • Speed range: 0.25x – 3.0x
+  • Audio format: mp3 (Kokoro native)
+
+NOTE: Calendar integration lives separately in the `calendar` branch.
+      It will be merged into main at the end.
 """
 
 import argparse
@@ -14,7 +16,7 @@ from pathlib import Path
 
 import yaml
 
-from tts_kokoro import synthesize, synthesize_stream, check_kokoro_health
+from tts_kokoro import synthesize, check_kokoro_health
 from digest_format import format_text_digest
 
 CONFIG_PATH = Path("config.yaml")
@@ -98,11 +100,11 @@ DEMO_PAYLOADS = {
 
 SENTENCE_ENDS = (".", "!", "?", "।")
 
-# Kokoro voices per language — change to your preferred voice
+# Kokoro voice IDs per language
 KOKORO_VOICES = {
-    "en": "af_heart",   # warm American-English female voice
-    "hi": "af_heart",   # Kokoro currently best covers English; Hindi falls back
-    "mr": "af_heart",   # same fallback
+    "en": "af_heart",
+    "hi": "af_heart",   # Kokoro doesn't have native Hindi yet; English voice used
+    "mr": "af_heart",
 }
 
 
@@ -154,74 +156,63 @@ def trim_to_duration(text, max_sec, speed):
     return trimmed[: last + 1] if last > 0 else trimmed
 
 
-def make_digest(payload, prefs, sync_calendar=False):
+def make_digest(payload, prefs):
     """
-    Returns {
-        "text":       <formatted text digest>,
-        "spoken":     <raw spoken string>,
-        "audio_path": <path or None>,
-        "calendar":   <list of calendar results>
-    }
+    Returns:
+        {
+            "text":       <formatted text digest>,
+            "spoken":     <raw spoken string>,
+            "audio_path": <saved audio path or None>,
+        }
+
+    Calendar sync is intentionally NOT here — lives in the `calendar` branch.
     """
-    lang  = prefs.get("preferred_language", "en")
-    text  = build_spoken_text(payload, lang)
+    lang   = prefs.get("preferred_language", "en")
+    text   = build_spoken_text(payload, lang)
     result = {
         "text":       format_text_digest(payload, lang),
         "spoken":     text,
         "audio_path": None,
-        "calendar":   [],
     }
 
-    # ── TTS via Kokoro ────────────────────────────────────────────
-    if prefs.get("digest_mode", "hybrid") != "text_only":
-        if not check_kokoro_health():
-            print("[warn] Kokoro server not reachable — skipping audio. "
-                  "Start Docker: docker run -p 8880:8880 ghcr.io/remsky/kokoro-fastapi-cpu:latest")
-        else:
-            try:
-                voice   = KOKORO_VOICES.get(lang, "af_heart")
-                speed   = float(prefs.get("voice_speed", 1.0))
-                # Clamp speed to Kokoro's valid range
-                speed   = max(0.25, min(3.0, speed))
-                spoken  = trim_to_duration(text, prefs.get("max_duration_sec", 30), speed)
-                fmt     = prefs.get("audio_format", "mp3")
-                out_file = f"digest.{fmt}"
-                result["audio_path"] = synthesize(spoken, voice=voice, out_file=out_file, speed=speed, fmt=fmt)
-            except Exception as e:
-                print(f"[warn] Kokoro TTS failed, falling back to text only: {e}")
+    if prefs.get("digest_mode", "hybrid") == "text_only":
+        return result
 
-    # ── Calendar sync ─────────────────────────────────────────────
-    if sync_calendar:
-        try:
-            from calendar_integration import sync_digest_to_calendars
-            cal_results = sync_digest_to_calendars(
-                payload,
-                use_google  = True,
-                use_outlook = True,
-            )
-            result["calendar"] = cal_results
-        except Exception as e:
-            print(f"[warn] Calendar sync failed: {e}")
+    if not check_kokoro_health():
+        print(
+            "[warn] Kokoro server not reachable — skipping audio.\n"
+            "       Start Docker: docker run -p 8880:8880 ghcr.io/remsky/kokoro-fastapi-cpu:latest"
+        )
+        return result
+
+    try:
+        voice    = KOKORO_VOICES.get(lang, "af_heart")
+        speed    = max(0.25, min(3.0, float(prefs.get("voice_speed", 1.0))))
+        spoken   = trim_to_duration(text, prefs.get("max_duration_sec", 30), speed)
+        fmt      = prefs.get("audio_format", "mp3")
+        out_file = f"digest.{fmt}"
+        result["audio_path"] = synthesize(
+            spoken, voice=voice, out_file=out_file, speed=speed, fmt=fmt
+        )
+    except Exception as e:
+        print(f"[warn] Kokoro TTS failed, falling back to text only: {e}")
 
     return result
 
 
 def main():
     parser = argparse.ArgumentParser(description="Create a text + Kokoro voice digest")
-    parser.add_argument("--input",    help="JSON file with ranked_summary / urgency_reason")
-    parser.add_argument("--mode",     choices=["text_only", "voice_only", "hybrid"])
-    parser.add_argument("--lang",     choices=["en", "hi", "mr"])
-    parser.add_argument("--speed",    type=float,
+    parser.add_argument("--input",  help="JSON file with ranked_summary / urgency_reason")
+    parser.add_argument("--mode",   choices=["text_only", "voice_only", "hybrid"])
+    parser.add_argument("--lang",   choices=["en", "hi", "mr"])
+    parser.add_argument("--speed",  type=float,
                         help="Voice speed multiplier: 0.25 (slow) to 3.0 (fast)")
-    parser.add_argument("--format",   choices=["mp3", "wav", "ogg"])
-    parser.add_argument("--calendar", action="store_true",
-                        help="Auto-sync deadlines to Google + Outlook Calendar")
+    parser.add_argument("--format", choices=["mp3", "wav", "ogg"])
     args = parser.parse_args()
 
     config = load_config()
     prefs  = config["user_preferences"]
 
-    # CLI flags override config.yaml
     if args.mode:
         prefs["digest_mode"] = args.mode
     if args.lang:
@@ -237,22 +228,17 @@ def main():
         else DEMO_PAYLOADS.get(prefs.get("preferred_language", "en"), DEMO_PAYLOADS["en"])
     )
 
-    result = make_digest(payload, prefs, sync_calendar=args.calendar)
+    result = make_digest(payload, prefs)
 
-    print("\n── TEXT DIGEST ────────────────────────────────────────")
+    print("\n── TEXT DIGEST ─────────────────────────────────────────")
     print(result["text"])
 
     if result["audio_path"]:
         size_kb = Path(result["audio_path"]).stat().st_size / 1024
-        print(f"\n── AUDIO ──────────────────────────────────────────────")
+        print(f"\n── AUDIO ───────────────────────────────────────────────")
         print(f"   {result['audio_path']} ({size_kb:.0f} KB)")
     else:
-        print("\n── AUDIO: none (text only or Kokoro unavailable) ──────")
-
-    if result["calendar"]:
-        print(f"\n── CALENDAR ───────────────────────────────────────────")
-        for r in result["calendar"]:
-            print(f"   • {r['title']}")
+        print("\n── AUDIO: none (text only or Kokoro unavailable) ───────")
 
 
 if __name__ == "__main__":
