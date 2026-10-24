@@ -1,4 +1,5 @@
 import json
+import os
 import re
 
 import requests
@@ -8,8 +9,8 @@ from ai_pipeline.deadline_resolver import resolve_deadline
 from ai_pipeline.urgency import rank_urgency
 
 
-OLLAMA_URL = "http://127.0.0.1:11434/api/chat"
-MODEL_NAME = "qwen2.5:3b"
+OLLAMA_URL = os.getenv("OLLAMA_URL", "http://127.0.0.1:11434/api/chat")
+MODEL_NAME = os.getenv("OLLAMA_MODEL", "qwen3:4b")
 
 SYSTEM_PROMPT = """
 Extract campus announcements into the supplied JSON schema.

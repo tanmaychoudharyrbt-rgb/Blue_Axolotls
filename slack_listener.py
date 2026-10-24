@@ -34,6 +34,14 @@ announcement_repo.delete_expired()
 
 slack_app = App(token=bot_token)
 
+# Retrieve the bot's own user ID to prevent self-message loops
+bot_user_id = None
+try:
+    auth_info = slack_app.client.auth_test()
+    bot_user_id = auth_info.get("user_id")
+except Exception as auth_err:
+    print(f"Notice: Could not fetch bot user id on startup ({auth_err})")
+
 # Only these categories trigger a notification ("Other" is ignored).
 NOTIFICATION_STYLES = {
     "🚨 Urgent": {
@@ -58,7 +66,8 @@ NOTIFICATION_STYLES = {
 REASONING_MARKERS = (
     "the user wants", "the user is asking", "looking at the",
     "i need to", "i should", "let me", "hmm,", "okay, so",
-    "the rules say", "i'll ", "first, i",
+    "the rules say", "i'll ", "first, i", "we are to", "we need to",
+    "looking at the slack",
 )
 
 
@@ -66,45 +75,69 @@ def looks_like_reasoning(text):
     """True if the model leaked its chain-of-thought instead of a summary."""
     lowered = text.strip().lower()
     return lowered.startswith(REASONING_MARKERS) or any(
-        marker in lowered[:200] for marker in REASONING_MARKERS[:3]
+        marker in lowered[:200] for marker in REASONING_MARKERS[:4]
     )
 
 
 def fallback_summary(message, limit=140):
-    """Short, safe summary used whenever the AI output can't be trusted."""
+    """Short, safe summary used whenever the AI output can't be trusted.
+
+    Extracts the key leading sentence or action clause rather than
+    repeating a lengthy wall of text verbatim.
+    """
     cleaned = " ".join(message.split())
-    return cleaned if len(cleaned) <= limit else cleaned[:limit].rstrip() + "…"
+    if len(cleaned) <= limit:
+        return cleaned
+
+    # Try splitting on sentence boundaries to return the core opening statement
+    sentences = re.split(r"(?<=[.!?])\s+", cleaned)
+    if sentences and len(sentences[0]) >= 10:
+        first = sentences[0].strip()
+        if len(first) <= limit:
+            return first
+
+    return cleaned[:limit].rstrip() + "…"
 
 
 def summarize_message(message):
-    """Summarize a Slack message using local Qwen through Ollama."""
+    """Summarize a Slack message using local Qwen through Ollama with structured JSON."""
+    cleaned_msg = " ".join(message.split())
+    if not cleaned_msg:
+        return ""
 
-    prompt = f"""Summarize this college Slack message into its most important information.
-
-Rules:
-- Use 1-2 short sentences (under 25 words total).
-- Preserve important facts, dates, times, locations and deadlines.
-- Do not invent information or change the meaning.
-- For exam notices, clearly state the exam and any date or change.
-- For urgent notices, clearly state the issue and required action.
-- Remove greetings, repetition and unnecessary details.
-- Return ONLY the summary. No explanation, no preamble.
-
-Message:
-{message}
-"""
+    system_prompt = (
+        "You are an expert college announcement summarizer.\n"
+        "Summarize the given Slack message into 1-2 clear, concise sentences (under 25 words total).\n"
+        "Rules:\n"
+        "- Preserve important facts: course, exam, deadline, date, time, location, and action required.\n"
+        "- Remove greetings, filler words, repetition, and unnecessary details.\n"
+        "- Do not explain or add commentary.\n"
+        "- Return ONLY the requested JSON object."
+    )
 
     payload = {
         "model": MODEL,
         "stream": False,
-        # Qwen3 "thinks" by default; its reasoning must never be posted.
         "think": False,
         "keep_alive": "10m",
-        "messages": [{"role": "user", "content": prompt}],
-        "options": {
-            "temperature": 0.2,
-            "num_predict": 150,
+        "format": {
+            "type": "object",
+            "properties": {
+                "summary": {
+                    "type": "string",
+                    "description": "A concise, 1-2 sentence factual summary under 25 words.",
+                }
+            },
+            "required": ["summary"],
         },
+        "options": {
+            "temperature": 0.0,
+            "num_predict": 120,
+        },
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": message},
+        ],
     }
 
     request = urllib.request.Request(
@@ -115,29 +148,43 @@ Message:
     )
 
     try:
-        with urllib.request.urlopen(request, timeout=60) as response:
+        with urllib.request.urlopen(request, timeout=30) as response:
             result = json.loads(response.read().decode("utf-8"))
 
-        # Cut off mid-generation -> the summary is incomplete, don't post it.
-        if result.get("done_reason") == "length":
-            print("Summary truncated by token limit; using fallback.")
-            return fallback_summary(message)
+        raw_content = result.get("message", {}).get("content", "").strip()
 
-        summary = result.get("message", {}).get("content", "")
+        # Remove any leaked reasoning tags before JSON parsing
+        cleaned_content = re.sub(r"<think>.*?</think>", "", raw_content, flags=re.DOTALL)
+        cleaned_content = re.sub(r"<think>.*", "", cleaned_content, flags=re.DOTALL).strip()
 
-        # Remove any leaked reasoning block (closed or unclosed).
-        summary = re.sub(r"<think>.*?</think>", "", summary, flags=re.DOTALL)
-        summary = re.sub(r"<think>.*", "", summary, flags=re.DOTALL).strip()
+        summary = ""
+        if cleaned_content:
+            try:
+                parsed = json.loads(cleaned_content)
+                if isinstance(parsed, dict):
+                    summary = parsed.get("summary", "").strip()
+            except json.JSONDecodeError:
+                # If JSON parsing fails, extract potential JSON substring
+                json_match = re.search(r"\{.*\}", cleaned_content, re.DOTALL)
+                if json_match:
+                    try:
+                        parsed = json.loads(json_match.group(0))
+                        if isinstance(parsed, dict):
+                            summary = parsed.get("summary", "").strip()
+                    except json.JSONDecodeError:
+                        summary = cleaned_content
+                else:
+                    summary = cleaned_content
 
         if summary and not looks_like_reasoning(summary):
             return summary
 
-        print("Model returned reasoning instead of a summary; using fallback.")
+        print("Model output was invalid or contained reasoning; using fallback.")
 
     except Exception as error:
-        print(f"Summarization failed, using original text: {error}")
+        print(f"Summarization failed, using fallback: {error}")
 
-    # Keep notifications working if Ollama is unavailable or misbehaves.
+    # Keep notifications working if Ollama is unavailable or misbehaves
     return fallback_summary(message)
 
 
@@ -149,7 +196,10 @@ def post_notification(channel_id, style, summary):
     channel displays, so there is no duplicate copy.
     """
 
-    mention = os.getenv("NOTIFY_USER_ID", "").strip()  # e.g. U012ABCDEF
+    mention = (
+        os.getenv("SLACK_ALERT_USER_ID")
+        or os.getenv("NOTIFY_USER_ID", "")
+    ).strip()
     prefix = f"<@{mention}> " if mention else ""
     push_text = f"{prefix}{style['label']} — {summary}"
 
@@ -180,6 +230,10 @@ def post_notification(channel_id, style, summary):
 def handle_message(event, logger):
     # Ignore bot messages (including our own), edits and other subtypes.
     if event.get("bot_id") or event.get("subtype"):
+        return
+
+    # Ignore messages sent by our own bot user to prevent loops.
+    if bot_user_id and event.get("user") == bot_user_id:
         return
 
     message_text = event.get("text", "").strip()
