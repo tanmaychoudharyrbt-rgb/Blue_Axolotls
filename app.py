@@ -1,21 +1,16 @@
 """
-app.py — CampusSignal Dashboard (Voice Extension with Ovular Player + Calendar Sync)
+app.py — CampusSignal Dashboard (Fully Integrated Frontend + Summarizer + Voice + Calendar)
 
-Features:
-  • Preserves 100% of campussignal_core: Qwen/rules classification, shared SQLite DB, Slack ingestion
-  • Compact 🔊 icon at the end of each message that expands into an Ovular Player
-  • Ovular Player has:
-      - ▶️ Play / ⏸️ Pause / ⏹️ Stop
-      - Real-time completion progress bar
-      - Time run and total duration (e.g. 0:04 / 0:18)
-      - Interactive speed switcher (0.75x, 1.0x, 1.25x, 1.5x, 2.0x, 3.0x)
-      - Option to set chosen speed as general default for all messages
-  • 📅 Add to Calendar: 1-click Google & Outlook calendar deadline creation (zero setup required)
+Seamlessly integrates:
+  • Person A (Slack & Core): campussignal_core, SQLite persistence, Slack Socket Mode
+  • Person B (AI Pipeline): extract_announcement, AnnouncementDigest, urgency ranking, zero hallucinations
+  • Person C (Voice & Calendar): Kokoro TTS with expandable ovular player, speed controls, Google/Outlook Calendar sync
 """
 
 import base64
 import re
 import sqlite3
+from datetime import datetime
 import streamlit as st
 import streamlit.components.v1 as components
 
@@ -26,12 +21,14 @@ from campussignal_core import (
     message_exists,
     save_message,
 )
+from ai_pipeline.extractor import extract_announcement
+from ai_pipeline.schema import AnnouncementDigest
 from tts_kokoro import synthesize_bytes, check_kokoro_health
 from calendar_integration import sync_digest_to_calendars
 
 st.set_page_config(
-    page_title="CampusSignal | Voice & Calendar Extension",
-    page_icon="🔊",
+    page_title="CampusSignal | College Communication & Voice Digest",
+    page_icon="📚",
     layout="wide",
 )
 
@@ -41,19 +38,49 @@ if "general_speed" not in st.session_state:
 if "active_player_id" not in st.session_state:
     st.session_state.active_player_id = None
 if "cached_audio" not in st.session_state:
-    st.session_state.cached_audio = {}  # {msg_id_or_hash: (b64, engine, speed)}
+    st.session_state.cached_audio = {}
+if "extracted_digests" not in st.session_state:
+    st.session_state.extracted_digests = {}
 
 init_db()
 
 
+def get_summary_text_for_speech(digest: AnnouncementDigest, raw_message: str) -> str:
+    """Creates a natural, high-signal spoken summary from the extracted digest."""
+    parts = []
+    
+    # Priority announcement intro
+    if digest.urgency_level == "HIGH":
+        parts.append("Urgent announcement:")
+    else:
+        parts.append("Campus notice:")
+
+    # Core action and title
+    title = digest.summary_title.strip().rstrip(".")
+    parts.append(f"{title}.")
+
+    if digest.required_action != "Not specified":
+        parts.append(f"Action required: {digest.required_action}.")
+
+    if digest.date_or_deadline != "Not specified":
+        parts.append(f"Deadline: {digest.date_or_deadline}.")
+
+    # Ranking reason if urgent
+    if digest.urgency_level in ("HIGH", "MEDIUM") and digest.ranking_reason:
+        reason = digest.ranking_reason.strip().rstrip(".")
+        parts.append(f"Why it matters: {reason}.")
+
+    return " ".join(parts)
+
+
 def render_ovular_audio_player(audio_b64: str, player_key: str, initial_speed: float = 1.25):
     """
-    Renders a sleek ovular pill-shaped audio player with:
+    Renders an expandable ovular capsule player with:
       • ▶️ / ⏸️ Play/Pause toggle
       • ⏹️ Stop
-      • Time run / Total duration
-      • Interactive completion scrub bar
-      • Instant speed selector (0.75x to 3.0x)
+      • Time elapsed / Total duration
+      • Scrub completion bar
+      • Speed selector (0.75x to 3.0x)
     """
     html_code = f"""
     <!DOCTYPE html>
@@ -163,9 +190,6 @@ def render_ovular_audio_player(audio_b64: str, player_key: str, initial_speed: f
           cursor: pointer;
           outline: none;
         }}
-        .speed-pill-select:hover {{
-          background: #1e293b;
-        }}
       </style>
     </head>
     <body>
@@ -251,7 +275,6 @@ def render_ovular_audio_player(audio_b64: str, player_key: str, initial_speed: f
           seekBar.value = 0;
         }});
 
-        // Auto-start on render
         window.addEventListener("DOMContentLoaded", () => {{
           audio.play().then(() => {{
             playBtn.innerText = "⏸";
@@ -264,78 +287,95 @@ def render_ovular_audio_player(audio_b64: str, player_key: str, initial_speed: f
     components.html(html_code, height=52)
 
 
-# ── Title & Global Preferences ─────────────────────────────────────
+# ── Title & Preferences ─────────────────────────────────────────────
 st.title("📚 CampusSignal")
-st.write("Your college communication, organized, spoken aloud, and synced to calendar.")
+st.write("Your college Slack communication, organized, summarized with local AI, spoken aloud, and synced to calendar.")
 
-with st.expander("⚙️ Voice & Calendar General Settings", expanded=False):
-    pref_col1, pref_col2 = st.columns(2)
-    with pref_col1:
+with st.expander("⚙️ System Status & Preferences", expanded=False):
+    c1, c2 = st.columns(2)
+    with c1:
         st.session_state.general_speed = st.select_slider(
-            "⚡ General Default Voice Speed (applies to all messages):",
+            "⚡ General Voice Speed:",
             options=[0.75, 1.0, 1.25, 1.5, 2.0, 3.0],
             value=st.session_state.general_speed,
             format_func=lambda x: f"{x}x speed",
         )
-    with pref_col2:
+    with c2:
         if check_kokoro_health():
             st.success("🟢 **Kokoro-FastAPI Online** (Port :8880)")
         else:
-            st.info("⚡ **Offline Voice Ready** (Instant Mac/Local Engine)")
+            st.info("⚡ **Offline Voice Ready** (Instant Local Engine)")
 
-col_main, col_side = st.columns([1.8, 1.2])
+col_main, col_side = st.columns([1.7, 1.3])
 
-# ── Main Panel: Message Input ──────────────────────────────────────
+# ── Main Panel: Message Input & Summarizer ─────────────────────────
 with col_main:
     st.subheader("📥 Paste a college message")
     message = st.text_area(
         "Announcement text:",
-        placeholder="Example: The endsem timetable is available on Moodle. Submit lab reports by 11 PM tonight.",
-        height=110,
+        placeholder="Example: Submit the lab report by 11 PM tonight. Mandatory attendance for final lab exam.",
+        height=100,
     )
 
-    btn_row1, btn_row2 = st.columns([1, 1])
-    analyze_btn = btn_row1.button("🔍 Analyze message", use_container_width=True)
+    btn_row1, btn_row2 = st.columns(2)
+    analyze_btn = btn_row1.button("🔍 Analyze & Summarize", use_container_width=True)
     cal_main_btn = btn_row2.button("📅 Add to Calendar", use_container_width=True)
 
     if analyze_btn:
         if not message.strip():
-            st.warning("Please enter a message.")
+            st.warning("Please enter announcement text.")
         else:
             clean_message = message.strip()
-            if message_exists(clean_message):
-                st.warning("🔁 This exact message is already saved.")
-            else:
-                with st.spinner("Classifying message..."):
-                    category, used_ai = classify_message(clean_message)
+            with st.spinner("Classifying and extracting structured summary..."):
+                # 1. Person A's classification
+                category, used_ai = classify_message(clean_message)
+                
+                # 2. Person B's structured extraction & summarizer
+                digest = extract_announcement(clean_message)
+                st.session_state.extracted_digests[clean_message] = digest
 
+                # 3. Save to database
                 saved, message_id = save_message(
                     message=clean_message,
                     category=category,
                     source="dashboard",
                 )
 
-                if saved:
-                    st.success("Message saved!")
-                    st.write("**Category:**", category)
-                    if used_ai:
-                        st.caption("Classified using Qwen.")
-                    else:
-                        st.warning("Qwen was unavailable. Used the keyword classifier instead.")
-                else:
-                    st.warning("🔁 This message was saved by another process.")
+            # Display Summarizer Card
+            st.success("Announcement Processed!")
+            
+            # Urgency pill
+            u_icon = "🔴" if digest.urgency_level == "HIGH" else "🟡" if digest.urgency_level == "MEDIUM" else "🟢"
+            st.markdown(f"### {u_icon} {digest.summary_title}")
+            
+            sum_col1, sum_col2 = st.columns(2)
+            with sum_col1:
+                st.markdown(f"**🏷️ Type:** `{digest.announcement_type}`")
+                st.markdown(f"**⚡ Action Required:** `{digest.required_action}`")
+            with sum_col2:
+                st.markdown(f"**⏰ Deadline:** `{digest.date_or_deadline}`")
+                st.markdown(f"**🎯 Urgency:** **{digest.urgency_level}** ({digest.ranking_reason})")
+
+            st.divider()
 
     if cal_main_btn:
         if not message.strip():
             st.warning("Please enter a message first.")
         else:
-            category, _ = classify_message(message.strip())
-            urgency = "high" if "Urgent" in category else "medium" if "Academic" in category else "low"
-            m = re.search(r"(today|tonight|tomorrow|\d{1,2}[:/]\d{2}\s*(?:am|pm)?|\d{4}-\d{2}-\d{2})", message.lower())
-            deadline_hint = m.group(0) if m else "Today, 11 PM"
+            clean_message = message.strip()
+            # Use Person B's extractor for exact factual deadline
+            digest = extract_announcement(clean_message)
+            deadline_str = digest.date_or_deadline if digest.date_or_deadline != "Not specified" else "Today, 11 PM"
+            
             payload = {
                 "ranked_summary": [
-                    {"title": message.strip()[:65], "summary": message.strip(), "urgency": urgency, "deadline": deadline_hint, "type": category}
+                    {
+                        "title": digest.summary_title,
+                        "summary": f"Action: {digest.required_action}\n{clean_message}",
+                        "urgency": digest.urgency_level.lower(),
+                        "deadline": deadline_str,
+                        "type": digest.announcement_type,
+                    }
                 ]
             }
             results = sync_digest_to_calendars(payload, use_google=True, use_outlook=True)
@@ -343,7 +383,7 @@ with col_main:
                 r = results[0]
                 gcal = r.get("google")
                 ocal = r.get("outlook")
-                st.success(f"📅 Deadline found: **{r['title']}**")
+                st.success(f"📅 Deadline found: **{r['title']}** ({deadline_str})")
                 col_g, col_o = st.columns(2)
                 if gcal and gcal.get("htmlLink"):
                     col_g.markdown(f"[📅 **Open in Google Calendar**]({gcal['htmlLink']})")
@@ -351,9 +391,9 @@ with col_main:
                     col_o.markdown(f"[📧 **Open in Outlook Calendar**]({ocal['webLink']})")
 
 
-# ── Side Panel: Saved Messages with Ovular TTS Icon ────────────────
+# ── Side Panel: Saved Messages with Summarizer Badge & Voice Player ─
 with col_side:
-    st.subheader("📨 Saved messages")
+    st.subheader("📨 Saved Messages")
 
     with sqlite3.connect(DB_NAME) as conn:
         rows = conn.execute(
@@ -364,38 +404,45 @@ with col_side:
             """
         ).fetchall()
 
-    st.write(f"Total unique messages: {len(rows)}")
+    st.write(f"Total stored messages: {len(rows)}")
 
     if not rows:
-        st.info("No messages have been saved yet.")
+        st.info("No messages saved yet.")
 
     for message_id, saved_message, category, source, channel_id in rows:
         with st.container(border=True):
-            # Message metadata header
-            if source == "slack":
-                header_text = f"#{message_id} · {category} · Slack"
-                if channel_id:
-                    header_text += f" ({channel_id})"
-            else:
-                header_text = f"#{message_id} · {category} · Dashboard"
-            st.caption(header_text)
+            # Header
+            src_label = f"Slack ({channel_id})" if source == "slack" and channel_id else source.capitalize()
+            st.caption(f"#{message_id} · {category} · {src_label}")
 
-            # Message content
-            st.write(saved_message)
+            # Extract or retrieve Person B's structured summary
+            if saved_message not in st.session_state.extracted_digests:
+                st.session_state.extracted_digests[saved_message] = extract_announcement(saved_message)
+            digest = st.session_state.extracted_digests[saved_message]
 
-            # ── Footer: Compact Icon expanding into Ovular Player ──
-            card_footer_col1, card_footer_col2 = st.columns([1.6, 1])
+            # Structured Summary Highlights
+            u_icon = "🔴" if digest.urgency_level == "HIGH" else "🟡" if digest.urgency_level == "MEDIUM" else "🟢"
+            st.markdown(f"**{u_icon} {digest.summary_title}**")
+            
+            if digest.date_or_deadline != "Not specified":
+                st.caption(f"⏰ **Deadline:** {digest.date_or_deadline} · ⚡ **Action:** {digest.required_action}")
+            
+            st.write(saved_message[:120] + ("…" if len(saved_message) > 120 else ""))
 
+            # ── Action Footer: Ovular Voice Player & Calendar Sync ──
+            footer_col1, footer_col2 = st.columns([1.6, 1])
             is_active = (st.session_state.active_player_id == message_id)
 
-            with card_footer_col1:
+            with footer_col1:
                 if not is_active:
-                    # Small compact icon at the end of the message
-                    if st.button(f"🔊 Listen", key=f"btn_listen_{message_id}", help="Listen to this message"):
-                        with st.spinner("Generating audio..."):
+                    # Compact 🔊 icon button
+                    if st.button("🔊 Listen", key=f"btn_listen_{message_id}", help="Listen to this announcement summary"):
+                        with st.spinner("Synthesizing voice..."):
                             try:
+                                # Speak the high-signal summary extracted by Person B
+                                spoken_text = get_summary_text_for_speech(digest, saved_message)
                                 audio_bytes, engine_label = synthesize_bytes(
-                                    text=saved_message,
+                                    text=spoken_text,
                                     speed=st.session_state.general_speed,
                                 )
                                 b64 = base64.b64encode(audio_bytes).decode("utf-8")
@@ -414,22 +461,20 @@ with col_side:
                             player_key=str(message_id),
                             initial_speed=st.session_state.general_speed,
                         )
-                    # Close / collapse button
                     if st.button("✖ Close player", key=f"close_{message_id}"):
                         st.session_state.active_player_id = None
                         st.rerun()
 
-            with card_footer_col2:
-                # Direct Calendar sync per message
-                if st.button("📅 Add to Cal", key=f"cal_{message_id}", help="Sync this deadline to Calendar"):
-                    m = re.search(r"(today|tonight|tomorrow|\d{1,2}[:/]\d{2}\s*(?:am|pm)?|\d{4}-\d{2}-\d{2})", saved_message.lower())
-                    deadline_hint = m.group(0) if m else "Today"
+            with footer_col2:
+                # Add to Calendar using Person B's extracted facts
+                if st.button("📅 Add to Cal", key=f"cal_{message_id}", help="Add this deadline to Google & Outlook"):
+                    deadline_val = digest.date_or_deadline if digest.date_or_deadline != "Not specified" else "Today"
                     res = sync_digest_to_calendars({
                         "ranked_summary": [{
-                            "title": saved_message[:60],
-                            "summary": saved_message,
-                            "deadline": deadline_hint,
-                            "urgency": "medium"
+                            "title": digest.summary_title,
+                            "summary": f"Action required: {digest.required_action}\nAnnouncement: {saved_message}",
+                            "deadline": deadline_val,
+                            "urgency": digest.urgency_level.lower(),
                         }]
                     })
                     if res:
