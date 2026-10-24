@@ -9,3 +9,6 @@ user_preferences:
 
 voices:
   en: "en_US-lessac-medium"
+
+  hi: "hi_IN-priyamvada-medium"
+  mr: "mr_IN-google-medium"
