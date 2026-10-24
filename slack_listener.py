@@ -1,5 +1,5 @@
-
 import os
+import re
 import json
 import urllib.request
 
@@ -8,6 +8,7 @@ from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
 
 from campussignal_core import (
+    MODEL,
     init_db,
     classify_message,
     save_message,
@@ -33,8 +34,7 @@ announcement_repo.delete_expired()
 
 slack_app = App(token=bot_token)
 
-MODEL = "qwen3:4b"
-
+# Only these categories trigger a notification ("Other" is ignored).
 NOTIFICATION_STYLES = {
     "🚨 Urgent": {
         "label": "🔴 URGENT",
@@ -86,6 +86,15 @@ Message:
         "options": {
             "temperature": 0.2,
         },
+        # Qwen3 "thinks" by default, which is slow and can exceed the
+        # timeout. Turn it off so the summary comes back quickly.
+        "think": False,
+        "keep_alive": "10m",
+        "messages": [{"role": "user", "content": prompt}],
+        "options": {
+            "temperature": 0.2,
+            "num_predict": 150
+        }
     }
 
     request = urllib.request.Request(
@@ -99,21 +108,52 @@ Message:
         with urllib.request.urlopen(request, timeout=60) as response:
             result = json.loads(response.read().decode("utf-8"))
 
-        summary = result.get("message", {}).get("content", "").strip()
+        summary = result.get("message", {}).get("content", "")
+
+        # Remove any leaked reasoning block.
+        summary = re.sub(
+            r"<think>.*?</think>", "", summary, flags=re.DOTALL
+        ).strip()
 
         if summary:
             return summary
 
     except Exception as error:
-        print(f"Summarization failed: {error}")
+        print(f"Summarization failed, using original text: {error}")
 
     # Keep notifications working if Ollama is unavailable.
     return message
 
 
+def build_notification(style, summary):
+    """Build the attachment: coloured sidebar, label, then summary."""
+
+    text = f"*{style['label']}*\n{summary}"
+
+    return {
+        "color": style["color"],
+        "fallback": f"{style['label']} — {summary}",
+        "blocks": [
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": text}
+            },
+            {
+                "type": "context",
+                "elements": [
+                    {
+                        "type": "mrkdwn",
+                        "text": "_Classified and summarized by CampusSignal_"
+                    }
+                ]
+            }
+        ]
+    }
+
+
 @slack_app.event("message")
 def handle_message(event, logger):
-    # Ignore bot messages, edits and other message subtypes.
+    # Ignore bot messages (including our own), edits and other subtypes.
     if event.get("bot_id") or event.get("subtype"):
         return
 
@@ -126,10 +166,12 @@ def handle_message(event, logger):
     slack_ts = event.get("ts", "")
 
     try:
-        # 1. Preserve the existing classification workflow.
+        # 1. Classify.
         category, used_ai = classify_message(message_text)
+        method = "Qwen" if used_ai else "keyword fallback"
+        print(f"Classified as {category} ({method})")
 
-        # 2. Save the legacy message and skip exact duplicates.
+        # 2. Save. Exact duplicates are not saved or notified again.
         saved, message_id = save_message(
             message=message_text,
             category=category,
@@ -139,7 +181,10 @@ def handle_message(event, logger):
         )
 
         if not saved:
-            print(f"Duplicate skipped: message #{message_id}")
+            print(
+                f"Duplicate of message #{message_id}: "
+                "already saved, so no new notification."
+            )
             return
 
         method = "Qwen" if used_ai else "keyword fallback"
@@ -181,7 +226,7 @@ def handle_message(event, logger):
         style = NOTIFICATION_STYLES.get(category)
 
         if style is None:
-            print("No notification needed.")
+            print("Category is Other: no notification needed.")
             return
 
         # 5. Put the category first in the notification.
@@ -202,11 +247,21 @@ def handle_message(event, logger):
                     "mrkdwn_in": ["text"],
                 }
             ],
+        # 4. Summarize, then post ONE coloured notification.
+        summary = summarize_message(message_text)
+        print(f"Summary: {summary}")
+
+        # No top-level `text`: Slack would show it as a second, plain
+        # copy above the coloured card. `fallback` covers push
+        # notifications and clients that can't render attachments.
+        slack_app.client.chat_postMessage(
+            channel=channel_id,
+            attachments=[build_notification(style, summary)],
             unfurl_links=False,
             unfurl_media=False,
         )
 
-        print(f"{style['label']} summary posted!")
+        print(f"{style['label']} notification posted.")
 
     except Exception:
         logger.exception("Failed to process or notify about message")

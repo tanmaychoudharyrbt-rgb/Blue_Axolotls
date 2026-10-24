@@ -1,0 +1,31 @@
+{
+  "ranked_summary": [
+    {
+      "title": "Lab report deadline",
+      "type": "Deadline",
+      "urgency": "high",
+      "summary": "Submit the lab report by 11 PM tonight.",
+      "action": "Upload the report on the course portal",
+      "deadline": "Today, 11 PM",
+      "urgency_reason": "explicit deadline within 24 hours",
+      "source_url": "https://example.com/mock-slack/lab-report",
+      "note": "Time zone not stated in the announcement"
+    },
+    {
+      "title": "Guest lecture venue change",
+      "type": "Schedule change",
+      "urgency": "medium",
+      "summary": "Friday's guest lecture moved to Hall B.",
+      "urgency_reason": "venue changed",
+      "source_url": "https://example.com/mock-slack/guest-lecture"
+    },
+    {
+      "title": "Cultural fest volunteers",
+      "type": "General update",
+      "urgency": "low",
+      "summary": "Volunteer signup for the cultural fest is open this week.",
+      "source_url": "https://example.com/mock-slack/cultural-fest"
+    }
+  ],
+  "urgency_reason": "one deadline is due tonight"
+}

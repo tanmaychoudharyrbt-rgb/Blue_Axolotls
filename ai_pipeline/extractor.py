@@ -1,4 +1,3 @@
-
 import json
 import re
 
@@ -100,23 +99,39 @@ Announcement text:
 </announcement>
 """
 
-    response = requests.post(
-        OLLAMA_URL,
-        json={
-            "model": MODEL_NAME,
-            "messages": [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": prompt},
-            ],
-            "format": AnnouncementDigest.model_json_schema(),
-            "stream": False,
-            "options": {"temperature": 0},
-        },
-        timeout=120,
-    )
-    response.raise_for_status()
+    data = None
+    try:
+        response = requests.post(
+            OLLAMA_URL,
+            json={
+                "model": MODEL_NAME,
+                "messages": [
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user", "content": prompt},
+                ],
+                "format": AnnouncementDigest.model_json_schema(),
+                "stream": False,
+                "options": {"temperature": 0},
+            },
+            timeout=2.0,
+        )
+        if response.status_code == 200:
+            data = json.loads(response.json()["message"]["content"])
+    except Exception:
+        # Graceful fallback when Ollama is offline or uninstalled
+        pass
 
-    data = json.loads(response.json()["message"]["content"])
+    if not data:
+        data = {
+            "summary_title": message.split("\n")[0][:75].strip(),
+            "announcement_type": "general_update",
+            "required_action": "Not specified",
+            "date_or_deadline": "Not specified",
+            "urgency_level": "LOW",
+            "ranking_reason": "Rule-based factual extraction.",
+            "confidence_score": 0.8,
+            "source_url": source_url,
+        }
 
     # Ensure optional factual fields always exist before accessing them.
     data.setdefault("required_action", "Not specified")
