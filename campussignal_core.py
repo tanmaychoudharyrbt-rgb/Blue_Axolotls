@@ -15,35 +15,78 @@ DB_NAME = os.path.join(
 MODEL = "qwen3:4b"
 
 URGENT_WORDS = [
-    "mandatory", "compulsory", "urgent", "immediately",
-    "asap", "must attend", "action required",
-    "final reminder", "emergency", "critical notice",
+    "urgent", "urgently", "emergency", "immediately",
+    "asap", "action required", "mandatory", "compulsory",
+    "must attend", "attendance is compulsory",
+    "attendance is mandatory", "strictly mandatory",
+    "final reminder", "last reminder", "last chance",
+    "final warning", "deadline today", "due today",
+    "submit today", "report immediately", "no extension",
+    "deadline extended", "deadline approaching",
+    "last date", "last date to submit", "overdue",
     "cancelled", "canceled", "postponed", "rescheduled",
-    "deadline today", "submit today", "report immediately"
+    "suspended", "important notice", "critical notice",
+    "immediate action", "time sensitive", "time-sensitive",
+    "failure to comply", "attendance required",
+    "registration closes today", "closes tonight"
+]
+
+EXAM_WORDS = [
+    "exam", "exams", "examination", "examinations",
+    "endsem", "end-sem", "end sem", "end semester",
+    "midsem", "mid-sem", "mid sem", "mid semester",
+    "midterm", "mid-term", "finals", "final exam",
+    "unit test", "class test", "surprise test",
+    "test", "quiz", "mock test", "practice test",
+    "assessment", "internal assessment", "evaluation",
+    "viva", "practical exam", "lab exam",
+    "exam timetable", "exam schedule", "date sheet",
+    "hall ticket", "admit card", "exam form",
+    "exam registration", "exam postponed",
+    "exam cancelled", "exam canceled",
+    "exam rescheduled", "exam syllabus",
+    "question paper", "previous year questions",
+    "pyq", "answer key", "results declared",
+    "exam results", "revaluation", "backlog exam",
+    "supplementary exam", "retake", "grading"
 ]
 
 ACADEMIC_WORDS = [
-    "worksheet", "assignment", "homework", "coursework",
+    "assignment", "assignments", "homework",
+    "coursework", "worksheet", "worksheets",
     "problem set", "practice set", "tutorial sheet",
-    "notes", "lecture", "slides", "syllabus", "curriculum",
-    "exam", "examination", "test", "quiz", "midsem",
-    "mid-sem", "mid semester", "endsem", "end-sem",
-    "finals", "lab", "laboratory", "practical", "experiment",
-    "viva", "submission", "due date", "timetable",
-    "time table", "question paper", "pyq", "study material",
-    "grades", "marks", "results", "moodle", "semester",
-    "internal assessment", "lecture recording"
+    "lecture", "lectures", "lecture notes",
+    "notes", "slides", "ppt", "pdf notes",
+    "syllabus", "curriculum", "study material",
+    "reference material", "textbook", "reading material",
+    "chapter", "unit", "module", "lab", "laboratory",
+    "experiment", "lab manual", "lab record",
+    "practical", "submission", "submit", "due date",
+    "moodle", "classroom", "attendance",
+    "timetable", "time table", "lecture recording",
+    "project", "project report", "research paper",
+    "grades", "marks", "results", "credits",
+    "academic calendar", "course registration",
+    "department notice", "faculty notice",
+    "office hours", "tutorial", "doubt session"
 ]
 
 EVENT_WORDS = [
-    "fest", "festival", "concert", "event", "hackathon",
-    "workshop", "seminar", "conference", "competition",
-    "contest", "tournament", "auditions", "orientation",
-    "freshers", "farewell", "club recruitment", "club induction",
-    "register now", "sign up", "guest speaker", "open mic",
-    "exhibition", "showcase", "meetup", "sports day",
-    "annual day", "cultural night", "coding competition",
-    "robotics event", "volunteer for", "tickets available"
+    "fest", "festival", "concert", "hackathon",
+    "workshop", "seminar", "conference", "contest",
+    "competition", "coding contest", "coding competition",
+    "tournament", "sports day", "auditions",
+    "orientation", "freshers", "farewell",
+    "club recruitment", "club induction", "club meeting",
+    "registration open", "register now", "sign up",
+    "guest speaker", "open mic", "exhibition",
+    "showcase", "meetup", "annual day",
+    "cultural night", "robotics event", "volunteer",
+    "volunteering", "networking event", "webinar",
+    "ideathon", "quiz competition", "prize distribution",
+    "certificate ceremony", "award ceremony",
+    "technical event", "non-technical event",
+    "event registration", "event venue"
 ]
 
 
@@ -101,8 +144,13 @@ def contains_any(text, words):
 def classify_with_rules(message):
     text = message.lower()
 
+    # Urgency always takes priority.
     if contains_any(text, URGENT_WORDS):
         return "🚨 Urgent"
+
+    # Exam-related messages get their own category.
+    if contains_any(text, EXAM_WORDS):
+        return "📝 Exam Alert"
 
     if contains_any(text, ACADEMIC_WORDS):
         return "📚 Academic"
@@ -113,8 +161,15 @@ def classify_with_rules(message):
     return "💬 Other"
 
 
+
 def classify_with_qwen(message):
-    categories = ["Academic", "Urgent", "Event", "Other"]
+    categories = [
+        "Academic",
+        "Urgent",
+        "Exam Alert",
+        "Event",
+        "Other"
+    ]
 
     payload = {
         "model": MODEL,
@@ -132,25 +187,49 @@ def classify_with_qwen(message):
             "required": ["category"]
         },
         "options": {
-            "num_predict": 30,
+            "num_predict": 40,
             "temperature": 0
         },
         "messages": [
             {
                 "role": "system",
                 "content": (
-                    "Classify this college message into one category. "
-                    "Academic: assignments, worksheets, exams, labs, "
-                    "lectures, notes, submissions, midsems, endsems, "
-                    "PYQs, timetables and grades. "
-                    "Urgent: emergencies, compulsory attendance, "
-                    "immediate action, cancellations and critical notices. "
-                    "Event: fests, concerts, hackathons, workshops, "
-                    "seminars, competitions, club activities and registrations. "
-                    "Other: general information and casual conversation. "
-                    "Understand synonyms, abbreviations and informal wording. "
-                    "Use the whole message, not just keywords. "
-                    "Return the category in the required JSON format."
+                    "Classify this college message into exactly one category.\n\n"
+
+                    "Urgent: Messages requiring immediate attention or action, "
+                    "emergencies, compulsory attendance, immediate deadlines, "
+                    "critical notices, cancellations, postponements, and "
+                    "important changes requiring prompt action.\n"
+
+                    "Exam Alert: Exam announcements, exam schedules, "
+                    "midsems, endsems, midterms, tests, quizzes, mock tests, "
+                    "vivas, practical exams, exam forms, hall tickets, "
+                    "exam results, and exam-related instructions.\n"
+
+                    "Academic: Assignments, homework, worksheets, lecture "
+                    "notes, slides, labs, projects, syllabus, study material, "
+                    "submissions, timetables, grades, and regular coursework.\n"
+
+                    "Event: Hackathons, contests, competitions, fests, "
+                    "seminars, workshops, club activities, tournaments, "
+                    "auditions, and event registrations.\n"
+
+                    "Other: Casual conversation and general messages "
+                    "that do not fit the categories above.\n\n"
+
+                    "PRIORITY RULES:\n"
+                    "1. If immediate action is required, classify as Urgent, "
+                    "even if the message concerns an exam or assignment.\n"
+                    "2. Otherwise, classify exam-related announcements as "
+                    "Exam Alert, not Academic.\n"
+                    "3. Classify academic coursework as Academic.\n"
+                    "4. Classify events and competitions as Event, unless "
+                    "immediate action makes them Urgent.\n"
+                    "5. Do not assume a message is urgent merely because "
+                    "it mentions an exam, deadline, or important topic. "
+                    "Consider the full context.\n"
+                    "6. Understand synonyms, abbreviations, and informal "
+                    "college language. Return only the required category."
                 )
             },
             {
@@ -176,6 +255,7 @@ def classify_with_qwen(message):
     labels = {
         "Academic": "📚 Academic",
         "Urgent": "🚨 Urgent",
+        "Exam Alert": "📝 Exam Alert",
         "Event": "🎉 Event",
         "Other": "💬 Other"
     }
@@ -184,6 +264,7 @@ def classify_with_qwen(message):
         raise ValueError("Invalid category from Qwen")
 
     return labels[category]
+
 
 
 def classify_message(message):

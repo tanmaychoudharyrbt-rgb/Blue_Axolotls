@@ -113,7 +113,7 @@ Message:
 
 @slack_app.event("message")
 def handle_message(event, logger):
-    # Ignore bot messages, edits, and other message subtypes.
+    # Ignore bot messages, edits and other message subtypes.
     if event.get("bot_id") or event.get("subtype"):
         return
 
@@ -184,11 +184,7 @@ def handle_message(event, logger):
             print("No notification needed.")
             return
 
-        # 5. Summarize notifications with local Qwen.
-        summary = summarize_message(message_text)
-        print("Summary:", summary)
-
-        # 6. Post the category and summary in the original channel.
+        # 5. Put the category first in the notification.
         notification_text = (
             f"*{style['label']}*\n"
             f"{summary}\n\n"
