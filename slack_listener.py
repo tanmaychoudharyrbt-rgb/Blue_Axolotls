@@ -20,15 +20,35 @@ if not bot_token or not app_token:
         "Slack tokens missing. Check your .env file."
     )
 
-# Make sure the shared database exists.
 init_db()
 
 slack_app = App(token=bot_token)
 
 
+# Categories that trigger notifications.
+NOTIFICATION_STYLES = {
+    "🚨 Urgent": {
+        "label": "🔴 URGENT",
+        "color": "#E01E5A"
+    },
+    "📝 Exam Alert": {
+        "label": "🟠 EXAM ALERT",
+        "color": "#F28C28"
+    },
+    "📚 Academic": {
+        "label": "🔵 ACADEMIC",
+        "color": "#1264A3"
+    },
+    "🎉 Event": {
+        "label": "🟢 EVENT",
+        "color": "#2BAC76"
+    }
+}
+
+
 @slack_app.event("message")
 def handle_message(event, logger):
-    # Ignore messages sent by bots or message subtypes.
+    # Ignore bot messages, edits, and other message subtypes.
     if event.get("bot_id") or event.get("subtype"):
         return
 
@@ -41,10 +61,10 @@ def handle_message(event, logger):
     slack_ts = event.get("ts", "")
 
     try:
-        # Classify the real Slack message using Qwen.
+        # 1. Classify the incoming message.
         category, used_ai = classify_message(message_text)
 
-        # Save it in the same database used by Streamlit.
+        # 2. Save it and skip exact duplicates.
         saved, message_id = save_message(
             message=message_text,
             category=category,
@@ -53,25 +73,51 @@ def handle_message(event, logger):
             slack_ts=slack_ts
         )
 
-        if saved:
-            method = "Qwen" if used_ai else "keyword fallback"
+        if not saved:
+            print(f"Duplicate skipped: message #{message_id}")
+            return
 
-            print("\nNew Slack message processed!")
-            print("Message ID:", message_id)
-            print("Channel ID:", channel_id)
-            print("Category:", category)
-            print("Classifier:", method)
-            print("Message:", message_text)
-        else:
-            print("\nDuplicate message skipped.")
-            print("Existing message ID:", message_id)
-            print("Message:", message_text)
+        method = "Qwen" if used_ai else "keyword fallback"
+
+        print(f"New message classified: {category} ({method})")
+
+        # 3. Other messages do not trigger notifications.
+        style = NOTIFICATION_STYLES.get(category)
+
+        if style is None:
+            print("No notification needed.")
+            return
+
+        # 4. Put the category first in the notification.
+        notification_text = (
+            f"*{style['label']}*\n"
+            f"{message_text}\n\n"
+            "_Automatically classified by CampusSignal._"
+        )
+
+        # 5. Send a Slack message with a colored sidebar.
+        slack_app.client.chat_postMessage(
+            channel=channel_id,
+            text=f"{style['label']} — {message_text}",
+            attachments=[
+                {
+                    "color": style["color"],
+                    "fallback": f"{style['label']} — {message_text}",
+                    "text": notification_text,
+                    "mrkdwn_in": ["text"]
+                }
+            ],
+            unfurl_links=False,
+            unfurl_media=False
+        )
+
+        print(f"{style['label']} notification sent!")
 
     except Exception:
-        logger.exception("Failed to process a Slack message")
+        logger.exception("Failed to process or notify about message")
 
 
 if __name__ == "__main__":
     print("CampusSignal is connecting to Slack...")
-    print("Waiting for new messages...")
+    print("Waiting for messages and notifications...")
     SocketModeHandler(slack_app, app_token).start()
