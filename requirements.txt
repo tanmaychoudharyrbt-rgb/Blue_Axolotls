@@ -40,3 +40,9 @@ pyyaml>=6.0
 
 # Voice TTS
 gTTS>=2.3.2
+
+# Calendar Integration (Google & Microsoft Outlook)
+google-api-python-client>=2.100.0
+google-auth-httplib2>=0.2.0
+google-auth-oauthlib>=1.1.0
+msal>=1.24.0

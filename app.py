@@ -1,15 +1,17 @@
 """
-app.py — CampusSignal Dashboard with Voice Extension
+app.py — CampusSignal Dashboard (Voice + Calendar Extension)
 Preserves 100% of the team's core pipeline from campussignal_core:
   • Qwen / keyword classification
   • Shared SQLite database with Slack & Dashboard sources
   • Ingestion of real Slack messages and channel IDs
 Seamlessly adds:
   • ▶️ Start / ⏹️ Stop TTS voice synthesis (0.25x – 3.0x speed)
+  • 📅 Add to Calendar button (Google & Outlook Calendar sync)
   • Dedicated audio player with instant playback
   • Mini Play buttons on every Slack & Dashboard announcement
 """
 
+import re
 import sqlite3
 import streamlit as st
 
@@ -21,6 +23,7 @@ from campussignal_core import (
     save_message,
 )
 from tts_kokoro import synthesize_stream, check_kokoro_health
+from calendar_integration import sync_digest_to_calendars
 
 st.set_page_config(
     page_title="CampusSignal | College Communication & Voice Digest",
@@ -40,12 +43,12 @@ if "engine_used" not in st.session_state:
 init_db()
 
 st.title("📚 CampusSignal")
-st.write("Your college communication, organized and spoken aloud.")
-st.caption("Local AI classification powered by Qwen · Voice notes powered by Kokoro TTS.")
+st.write("Your college communication, organized, spoken aloud, and synced to calendar.")
+st.caption("Local AI classification powered by Qwen · Voice notes by Kokoro TTS · Calendar sync via Google & Outlook.")
 
 col_main, col_side = st.columns([2, 1])
 
-# ── Main Panel: Message Input & Voice Controls ────────────────────
+# ── Main Panel: Message Input & Voice/Calendar Controls ───────────
 with col_main:
     message = st.text_area(
         "Paste a college message:",
@@ -65,12 +68,13 @@ with col_main:
     )
 
     # Control buttons row
-    btn1, btn2, btn3 = st.columns([1.3, 1.2, 1])
-    analyze_btn = btn1.button("🔍 Analyze message", use_container_width=True)
+    btn1, btn2, btn3, btn4 = st.columns([1.2, 1.1, 1, 1.3])
+    analyze_btn = btn1.button("🔍 Analyze & Save", use_container_width=True)
     start_tts_btn = btn2.button("▶️ Start Voice", type="primary", use_container_width=True)
     stop_tts_btn = btn3.button("⏹️ Stop Voice", use_container_width=True)
+    calendar_btn = btn4.button("📅 Add to Calendar", use_container_width=True)
 
-    # Action 1: Analyze & Save (Friend's exact core logic)
+    # Action 1: Analyze & Save
     if analyze_btn:
         if not message.strip():
             st.warning("Please enter a message.")
@@ -123,6 +127,55 @@ with col_main:
                     st.session_state.engine_used = engine_name
                 except Exception as err:
                     st.error(f"Voice generation error: {err}")
+
+    # Action 4: Calendar Sync
+    if calendar_btn:
+        if not message.strip():
+            st.warning("Please enter a message first.")
+        else:
+            clean_message = message.strip()
+            category, _ = classify_message(clean_message)
+            urgency = (
+                "high" if "Urgent" in category or "Important" in category
+                else "medium" if "Academic" in category
+                else "low"
+            )
+
+            # Extract deadline hint
+            m = re.search(
+                r"(today|tonight|tomorrow|\d{1,2}[:/]\d{2}\s*(?:am|pm)?|\d{4}-\d{2}-\d{2})",
+                clean_message.lower(),
+            )
+            deadline_hint = m.group(0) if m else "Today, 11 PM"
+
+            payload = {
+                "ranked_summary": [
+                    {
+                        "title": clean_message[:70],
+                        "summary": clean_message,
+                        "urgency": urgency,
+                        "deadline": deadline_hint,
+                        "type": category,
+                    }
+                ]
+            }
+
+            with st.spinner("📅 Syncing to Google & Outlook Calendar..."):
+                try:
+                    results = sync_digest_to_calendars(payload, use_google=True, use_outlook=True)
+                    if results:
+                        for r in results:
+                            st.success(f"📅 Added deadline to calendar: **{r['title'][:60]}**")
+                            gcal = r.get("google")
+                            ocal = r.get("outlook")
+                            if gcal and gcal.get("htmlLink"):
+                                st.markdown(f"[🔗 Open in Google Calendar]({gcal['htmlLink']})")
+                            if ocal and ocal.get("webLink"):
+                                st.markdown(f"[🔗 Open in Outlook Calendar]({ocal['webLink']})")
+                    else:
+                        st.info("ℹ️ No parseable deadline found in message.")
+                except Exception as e:
+                    st.error(f"Calendar sync error: {e}")
 
     # Active Voice Player Widget
     if st.session_state.audio_bytes:
